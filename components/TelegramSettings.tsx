@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Copy, Check, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { Copy, Check, Link as LinkIcon, AlertCircle, Unlink } from 'lucide-react';
 
 interface TelegramSettingsProps {
   userId: string;
@@ -16,6 +16,7 @@ export default function TelegramSettings({ userId }: TelegramSettingsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
 
   useEffect(() => {
     checkLinkStatus();
@@ -74,6 +75,25 @@ export default function TelegramSettings({ userId }: TelegramSettingsProps) {
     }
   };
 
+  const handleUnlink = async () => {
+    if (!confirm('Desvincular sua conta Telegram? Você poderá vincular de novo depois com um novo token.')) return;
+    try {
+      setError(null);
+      setIsUnlinking(true);
+      const response = await fetch('/api/telegram/unlink', { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Falha ao desvincular');
+      }
+      setIsLinked(false);
+      setTelegramUsername(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao desvincular. Tente novamente.');
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-6">
@@ -93,19 +113,30 @@ export default function TelegramSettings({ userId }: TelegramSettingsProps) {
       </div>
 
       {isLinked ? (
-        <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-green-400 mb-2">
-            <Check className="w-5 h-5" />
-            <span className="font-medium">Conta vinculada</span>
-          </div>
-          {telegramUsername && (
-            <p className="text-slate-300 text-sm">
-              Usuário: @{telegramUsername}
+        <div className="space-y-3">
+          <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-green-400 mb-2">
+              <Check className="w-5 h-5" />
+              <span className="font-medium">Conta vinculada</span>
+            </div>
+            {telegramUsername && (
+              <p className="text-slate-300 text-sm">
+                Usuário: @{telegramUsername}
+              </p>
+            )}
+            <p className="text-slate-400 text-xs mt-2">
+              Você pode criar eventos enviando mensagens para o bot no Telegram.
             </p>
-          )}
-          <p className="text-slate-400 text-xs mt-2">
-            Você pode criar eventos enviando mensagens para o bot no Telegram.
-          </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleUnlink}
+            disabled={isUnlinking}
+            className="w-full px-4 py-2 bg-red-900/50 hover:bg-red-800/60 border border-red-700/50 text-red-200 rounded-lg transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Unlink className="w-4 h-4" />
+            {isUnlinking ? 'Desvinculando…' : 'Desvincular conta Telegram'}
+          </button>
         </div>
       ) : (
         <div className="space-y-4">

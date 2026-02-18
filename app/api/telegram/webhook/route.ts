@@ -3,6 +3,7 @@ import { Bot } from 'grammy';
 import {
   getTelegramUserByTelegramId,
   linkTelegramUser,
+  unlinkTelegramUser,
   validateAndUseToken,
 } from '@/lib/db/telegram';
 import { getEventsByUserId, createEvent } from '@/lib/db/events';
@@ -37,15 +38,29 @@ export async function POST(request: NextRequest) {
     let telegramLink = await getTelegramUserByTelegramId(telegramId);
 
     // Permite /link mesmo quando ainda não está vinculado
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://timelinediary.vercel.app';
     if (!telegramLink && text.startsWith('/link')) {
       const token = text.split(/\s+/)[1];
       if (!token) {
-        await bot.api.sendMessage(chatId, '❌ Por favor, forneça o token.\nUso: /link <token>');
+        await bot.api.sendMessage(
+          chatId,
+          '📌 Para vincular sua conta:\n\n' +
+            '1. Acesse o site e faça login\n' +
+            `2. Vá em Configurações → Telegram\n` +
+            '3. Clique em "Gerar Token de Vinculação"\n' +
+            '4. Envie aqui: /link <cole_o_token>\n\n' +
+            `🔗 ${appUrl}`
+        );
         return NextResponse.json({ ok: true });
       }
       const tokenData = await validateAndUseToken(token);
       if (!tokenData) {
-        await bot.api.sendMessage(chatId, '❌ Token inválido ou expirado. Gere um novo nas configurações do site.');
+        await bot.api.sendMessage(
+          chatId,
+          '❌ Token inválido ou expirado.\n\n' +
+            'Gere um novo token no site: Configurações → Telegram → "Gerar Token de Vinculação".\n' +
+            `Depois envie: /link <novo_token>\n\n🔗 ${appUrl}`
+        );
         return NextResponse.json({ ok: true });
       }
       await linkTelegramUser({
@@ -53,18 +68,24 @@ export async function POST(request: NextRequest) {
         telegram_id: telegramId,
         telegram_username: telegramUsername,
       });
-      await bot.api.sendMessage(chatId, '✅ Conta vinculada com sucesso! Agora você pode criar eventos aqui.');
+      await bot.api.sendMessage(
+        chatId,
+        '✅ Conta vinculada com sucesso!\n\nAgora você pode criar eventos enviando mensagens aqui. Use /help para ver os formatos.'
+      );
       return NextResponse.json({ ok: true });
     }
 
     if (!telegramLink) {
       await bot.api.sendMessage(
         chatId,
-        '❌ Você ainda não vinculou sua conta Telegram.\n\n' +
-          '1. Acesse as configurações no site\n' +
-          '2. Gere um token de vinculação\n' +
-          '3. Envie /link <token> aqui\n\n' +
-          'Use /help para ver todos os comandos.'
+        '👋 Olá! Para usar o bot você precisa vincular sua conta.\n\n' +
+          '📋 Passo a passo:\n' +
+          '1. Crie uma conta (ou faça login) no site\n' +
+          `2. No site: Configurações → aba "Telegram"\n` +
+          '3. Clique em "Gerar Token de Vinculação"\n' +
+          '4. Volte aqui e envie: /link <token>\n\n' +
+          `🔗 Acesse: ${appUrl}\n\n` +
+          '💡 Use o comando /link no menu para ver de novo essas instruções.'
       );
       return NextResponse.json({ ok: true });
     }
@@ -78,18 +99,16 @@ export async function POST(request: NextRequest) {
         case '/start':
           await bot.api.sendMessage(
             chatId,
-            '👋 Olá! Bem-vindo ao Timeline Diary Bot.\n\n' +
-              '📝 Para criar um evento, você pode:\n\n' +
-              '1️⃣ Formato estruturado:\n' +
-              '   Título | Data | Tipo | Link\n' +
-              '   Exemplo: Reunião | 2026-02-05 | important\n\n' +
-              '2️⃣ Formato simples:\n' +
-              '   Apenas o título (usa data de hoje)\n' +
-              '   Exemplo: Reunião importante amanhã\n\n' +
-              '3️⃣ Formatos de data suportados:\n' +
-              '   - Hoje, amanhã, próxima semana\n' +
-              '   - 2026-02-05 (ISO)\n' +
-              '   - 05/02/2026 (brasileiro)\n\n' +
+            '👋 Olá! Bem-vindo ao Timeline Diary.\n\n' +
+              '📝 Criar evento (escolha um):\n\n' +
+              '• Só o título (usa hoje):\n' +
+              '  Reunião importante\n\n' +
+              '• Título e data:\n' +
+              '  Reunião | amanhã\n' +
+              '  Apresentação | 2026-02-20\n\n' +
+              '• Completo: Título | Data | Tipo\n' +
+              '  Ex.: Reunião | 2026-02-05 | important\n\n' +
+              '📅 Datas: hoje, amanhã, 2026-02-05, 05/02/2026\n\n' +
               'Use /help para ver todos os comandos.'
           );
           break;
@@ -97,22 +116,31 @@ export async function POST(request: NextRequest) {
         case '/help':
           await bot.api.sendMessage(
             chatId,
-            '📚 Comandos disponíveis:\n\n' +
-              '/start - Iniciar o bot\n' +
-              '/link <token> - Vincular conta Telegram\n' +
-              '/evento <título> <data> [tipo] - Criar evento rápido\n' +
-              '/eventos - Listar últimos 5 eventos\n' +
-              '/help - Mostrar esta ajuda\n\n' +
-              '📝 Criar evento via mensagem:\n\n' +
-              'Formato estruturado:\n' +
-              'Título | Data | Tipo | Link\n\n' +
-              'Formato simples:\n' +
-              'Apenas o título (ex: "Reunião importante amanhã")\n\n' +
-              'Formatos de data:\n' +
-              '- Hoje, amanhã, próxima semana\n' +
-              '- 2026-02-05 ou 05/02/2026'
+            '📚 Comandos (também no menu ao tocar em /):\n\n' +
+              '/start – Iniciar e ver exemplos\n' +
+              '/link <token> – Vincular conta (token do site)\n' +
+              '/desvincular – Desvincular esta conta do site\n' +
+              '/evento <título> <data> [tipo] – Criar evento\n' +
+              '/eventos – Ver meus últimos 5 eventos\n' +
+              '/help – Esta ajuda\n\n' +
+              '📝 Ou envie uma mensagem para criar evento:\n' +
+              '• Simples: "Reunião amanhã"\n' +
+              '• Com tipo: "Reunião | 2026-02-20 | important"'
           );
           break;
+
+        case '/desvincular': {
+          const ok = await unlinkTelegramUser(userId);
+          if (ok) {
+            await bot.api.sendMessage(
+              chatId,
+              '✅ Conta desvinculada. Para vincular de novo, use um token novo no site (Configurações → Telegram) e envie /link <token> aqui.'
+            );
+          } else {
+            await bot.api.sendMessage(chatId, '❌ Não foi possível desvincular (conta já estava desvinculada).');
+          }
+          break;
+        }
 
         case '/link': {
           const token = text.split(' ')[1];

@@ -82,7 +82,19 @@ Deixe o webhook apontando para a URL da Vercel e teste o bot apenas depois do de
 
 ---
 
-## 5. Configurar o webhook (produção)
+## 5. Comandos no menu do chat (recomendado)
+
+Para que os comandos apareçam no menu ao tocar em "/" no Telegram (deixa o uso mais intuitivo):
+
+```bash
+npm run telegram:commands
+```
+
+Isso define: **start**, **link**, **help**, **evento**, **eventos** com descrições em português. O usuário vê o passo a passo sem errar o cadastro.
+
+---
+
+## 6. Configurar o webhook (produção)
 
 Quando o app estiver no ar (ex.: Vercel), defina o webhook para a URL do deploy.
 
@@ -107,7 +119,7 @@ A resposta deve conter `"url": "https://seu-app.vercel.app/api/telegram/webhook"
 
 ---
 
-## 6. Vincular a conta Telegram à conta web
+## 7. Vincular a conta Telegram à conta web
 
 1. No app (local ou produção), faça **login**.
 2. Vá em **Configurações** (ou perfil) → aba **Telegram**.
@@ -123,10 +135,19 @@ Depois disso você pode criar eventos enviando mensagens para o bot (veja `/help
 
 ---
 
-## 7. Testar o bot
+## 8. Desvincular a conta Telegram
+
+**No site:** Configurações → Telegram → **Desvincular conta Telegram**. Confirme no diálogo. Você pode vincular de novo depois gerando um novo token.
+
+**No Telegram:** Envie **/desvincular** para o bot. A conta será desvinculada; para vincular de novo, use um token novo no site e envie `/link <token>`.
+
+---
+
+## 9. Testar o bot
 
 - **/start** — mensagem de boas-vindas e instruções.
 - **/help** — lista de comandos e formato de mensagens para criar eventos.
+- **/desvincular** — desvincula a conta Telegram do site.
 - **Mensagem simples** — ex.: `Reunião amanhã` (cria evento com título e data de amanhã).
 - **Formato estruturado** — ex.: `Reunião | 2026-02-20 | important`.
 
@@ -145,8 +166,9 @@ Se algo falhar, confira:
 | 2 | Gerar uma string aleatória para `TELEGRAM_WEBHOOK_SECRET` |
 | 3 | Colocar `TELEGRAM_BOT_TOKEN` e `TELEGRAM_WEBHOOK_SECRET` no `.env.local` (e na Vercel) |
 | 4 | (Local) Usar ngrok e setar webhook para a URL do ngrok, ou testar só em produção |
-| 5 | (Produção) Chamar `setWebhook` com a URL do app (ex.: Vercel) |
-| 6 | No app: Configurações → Telegram → Gerar token → no bot: `/link <token>` |
-| 7 | Testar com `/start`, `/help` e uma mensagem de evento |
+| 5 | (Opcional) `npm run telegram:commands` — comandos no menu do chat |
+| 6 | (Produção) Chamar `setWebhook` com a URL do app (ex.: Vercel) |
+| 7 | No app: Configurações → Telegram → Gerar token → no bot: `/link <token>` |
+| 8 | Testar com `/start`, `/help` e uma mensagem de evento |
 
 Para deploy completo (Vercel + variáveis + webhook), use também `docs/CHECKLIST_DEPLOY.md` e `docs/FALTA_PARA_PRODUCAO.md`.

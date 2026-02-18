@@ -42,7 +42,7 @@ export default function UserTimelinePage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [filterActive, setFilterActive] = useState<boolean>(false);
+  const [filterActive, setFilterActive] = useState<boolean>(true);
   const [dashboardOpen, setDashboardOpen] = useState<boolean>(false);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<ApiUser | null>(null);
@@ -122,18 +122,7 @@ export default function UserTimelinePage({ params }: PageProps) {
     const userSettings = getSettingsByUserId(user.id);
     setSettings(userSettings ?? null);
 
-    // Só ajusta para o mês do último evento se ele for do mês atual ou futuro; senão mantém mês atual
-    if (mappedEvents.length > 0) {
-      const latestDate = new Date(mappedEvents[0].date + 'T12:00:00');
-      const now = new Date();
-      const isCurrentOrFuture =
-        latestDate.getFullYear() > now.getFullYear() ||
-        (latestDate.getFullYear() === now.getFullYear() && latestDate.getMonth() >= now.getMonth());
-      if (isCurrentOrFuture) {
-        setSelectedYear(latestDate.getFullYear());
-        setSelectedMonth(latestDate.getMonth());
-      }
-    }
+    // Mantém mês/ano atuais; usuário pode trocar pelo filtro ou menu
   }, [username, router]);
 
   useEffect(() => {
