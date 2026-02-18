@@ -251,6 +251,7 @@ export async function POST(request: NextRequest) {
         return null;
       };
 
+      try {
       if (isNao(lower) && trimmed.length < 10) {
         const state = await getBotState(telegramId);
         if (state?.step === 'confirm_name') {
@@ -477,6 +478,21 @@ export async function POST(request: NextRequest) {
           await bot.api.sendMessage(chatId, msg);
         } else {
           await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+        }
+        return NextResponse.json({ ok: true });
+      }
+      } catch (flowError: unknown) {
+        const errMsg = flowError instanceof Error ? flowError.message : String(flowError);
+        console.error('[Telegram Webhook] Conversational flow error:', errMsg, flowError);
+        const isMissingTable =
+          /telegram_bot_state|relation.*does not exist|table.*does not exist/i.test(errMsg);
+        if (isMissingTable) {
+          await bot.api.sendMessage(
+            chatId,
+            '⏳ O passo a passo pelo chat está em configuração no servidor. Por favor, adicione eventos pelo site por enquanto — em breve estará no ar aqui também.'
+          );
+        } else {
+          await bot.api.sendMessage(chatId, '❌ Algo deu errado ao processar. Tente de novo em instantes.');
         }
         return NextResponse.json({ ok: true });
       }
