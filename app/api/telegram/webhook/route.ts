@@ -34,7 +34,28 @@ export async function POST(request: NextRequest) {
   const telegramUsername = message.from.username || null;
 
   try {
-    const telegramLink = await getTelegramUserByTelegramId(telegramId);
+    let telegramLink = await getTelegramUserByTelegramId(telegramId);
+
+    // Permite /link mesmo quando ainda não está vinculado
+    if (!telegramLink && text.startsWith('/link')) {
+      const token = text.split(/\s+/)[1];
+      if (!token) {
+        await bot.api.sendMessage(chatId, '❌ Por favor, forneça o token.\nUso: /link <token>');
+        return NextResponse.json({ ok: true });
+      }
+      const tokenData = await validateAndUseToken(token);
+      if (!tokenData) {
+        await bot.api.sendMessage(chatId, '❌ Token inválido ou expirado. Gere um novo nas configurações do site.');
+        return NextResponse.json({ ok: true });
+      }
+      await linkTelegramUser({
+        user_id: tokenData.user_id,
+        telegram_id: telegramId,
+        telegram_username: telegramUsername,
+      });
+      await bot.api.sendMessage(chatId, '✅ Conta vinculada com sucesso! Agora você pode criar eventos aqui.');
+      return NextResponse.json({ ok: true });
+    }
 
     if (!telegramLink) {
       await bot.api.sendMessage(

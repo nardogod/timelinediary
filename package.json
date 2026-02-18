@@ -11,7 +11,9 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "db:migrate": "node scripts/run-neon-migration.mjs",
-    "db:check": "node scripts/check-neon-tables.mjs"
+    "db:check": "node scripts/check-neon-tables.mjs",
+    "telegram:test": "node scripts/test-telegram.mjs",
+    "telegram:webhook": "node scripts/set-telegram-webhook.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
