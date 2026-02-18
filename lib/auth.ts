@@ -16,7 +16,11 @@ export async function loginClient(email: string, password: string): Promise<Auth
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const msg = err.hint ? `${err.error || 'Erro ao fazer login'}. ${err.hint}` : (err.error || 'Email ou senha incorretos.');
+    throw new Error(msg);
+  }
   const data = await res.json();
   const user = data.user as AuthUser;
   if (user && typeof window !== 'undefined') {
@@ -38,7 +42,8 @@ export async function registerClient(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Erro ao registrar');
+    const msg = err.hint ? `${err.error || 'Erro ao registrar'}. ${err.hint}` : (err.error || 'Erro ao registrar');
+    throw new Error(msg);
   }
   const data = await res.json();
   const user = data.user as AuthUser;

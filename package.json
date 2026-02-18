@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "db:migrate": "node scripts/run-neon-migration.mjs"
+    "db:migrate": "node scripts/run-neon-migration.mjs",
+    "db:check": "node scripts/check-neon-tables.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",

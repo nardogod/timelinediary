@@ -63,7 +63,7 @@ Copiar `.env.local.example` para `.env.local` e preencher. **Nunca commitar `.en
 |----------|-----|
 | `DATABASE_URL` | Neon PostgreSQL (connection string) |
 | `AUTH_SECRET` | Cookie de sessão (min 16 chars) |
-| `TELEGRAM_BOT_TOKEN` | Bot do Telegram |
+| `TELEGRAM_BOT_TOKEN` | Bot do Telegram (ver `docs/TELEGRAM_CONFIG.md`) |
 | `TELEGRAM_WEBHOOK_SECRET` | Validação do webhook |
 | `NEXT_PUBLIC_APP_URL` | URL pública do app (produção) |
 

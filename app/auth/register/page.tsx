@@ -20,15 +20,18 @@ export default function RegisterPage() {
     setError('');
     setIsLoading(true);
 
-    const success = await register(email, password, username, name);
-    
-    if (success) {
-      router.push('/');
-    } else {
-      setError('Email ou username já está em uso');
+    try {
+      const success = await register(email, password, username, name);
+      if (success) {
+        router.push('/');
+        return;
+      }
+      setError('Email ou username já está em uso.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao registrar. Tente novamente.');
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

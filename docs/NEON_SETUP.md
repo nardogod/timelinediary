@@ -1,5 +1,9 @@
 # Conexão Neon + Cursor (acesso total)
 
+Para **conectar o Cursor ao banco** (ver tabelas, rodar SQL na IDE), veja **[CURSOR_NEON_ACESSO.md](./CURSOR_NEON_ACESSO.md)** — extensão PostgreSQL ou SQL Editor no navegador.
+
+---
+
 ## 1. Projeto no Neon
 
 - Projeto: [wispy-voice-66273074](https://console.neon.tech/app/projects/wispy-voice-66273074)
@@ -77,7 +81,7 @@ Com o app rodando (`npm run dev`):
 2. Crie uma conta (registro) — isso insere em `users` no Neon.
 3. Faça login — sessão via cookie + Neon.
 4. Crie um evento — salvo em `events` no Neon.
-5. Configure o Telegram (gerar token, vincular) — usa `telegram_users` e `telegram_link_tokens`.
+5. Configure o Telegram (gerar token, vincular) — usa `telegram_users` e `telegram_link_tokens`. Passo a passo: **[TELEGRAM_CONFIG.md](./TELEGRAM_CONFIG.md)**.
 
 ## 8. Resumo do que foi migrado
 

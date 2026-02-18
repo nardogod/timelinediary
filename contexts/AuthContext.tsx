@@ -56,7 +56,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return false;
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      throw error;
     }
   };
 
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return false;
     } catch (error) {
       console.error('Register error:', error);
-      return false;
+      throw error;
     }
   };
 

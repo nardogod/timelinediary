@@ -18,15 +18,18 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    const success = await login(email, password);
-    
-    if (success) {
-      router.push('/');
-    } else {
-      setError('Email ou senha incorretos');
+    try {
+      const success = await login(email, password);
+      if (success) {
+        router.push('/');
+        return;
+      }
+      setError('Email ou senha incorretos.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao fazer login. Tente novamente.');
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

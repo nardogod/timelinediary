@@ -3,7 +3,22 @@ import { compare } from 'bcryptjs';
 import { getUserAuthByEmail, getUserById } from '@/lib/db/users';
 import { setSessionCookie } from '@/lib/session';
 
+function checkEnv(): { ok: boolean; code?: string } {
+  if (!process.env.DATABASE_URL?.trim()) return { ok: false, code: 'DATABASE_URL' };
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.length < 16) return { ok: false, code: 'AUTH_SECRET' };
+  return { ok: true };
+}
+
 export async function POST(request: NextRequest) {
+  if (!checkEnv().ok) {
+    console.error('[auth/login] Missing env');
+    return NextResponse.json(
+      { error: 'Erro ao fazer login', code: 'SERVER_CONFIG', hint: 'Configure DATABASE_URL e AUTH_SECRET na Vercel.' },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { email, password } = body;
@@ -38,7 +53,15 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json({ error: 'Erro ao fazer login' }, { status: 500 });
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[auth/login]', err.message);
+    const isDb = err.message?.includes('DATABASE_URL') || err.message?.includes('relation') || err.message?.includes('does not exist');
+    return NextResponse.json(
+      {
+        error: 'Erro ao fazer login',
+        hint: isDb ? 'Verifique DATABASE_URL e se a migration foi executada no Neon.' : 'Verifique os logs na Vercel.',
+      },
+      { status: 500 }
+    );
   }
 }
