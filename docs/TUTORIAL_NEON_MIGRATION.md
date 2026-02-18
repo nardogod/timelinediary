@@ -124,6 +124,20 @@ Alguns clientes antigos ou modos “compat” podem não reconhecer `UUID` ou `g
    `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`  
    (para `gen_random_uuid()`; em versões recentes do Postgres já vem built-in.)
 
+**Passo G – Tabela `telegram_bot_state` (fluxo conversacional do bot):**
+
+Se usar o bot com fluxo passo a passo, rode também:
+
+```sql
+CREATE TABLE IF NOT EXISTS telegram_bot_state (
+  telegram_id BIGINT PRIMARY KEY,
+  step TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_bot_state_updated ON telegram_bot_state(updated_at);
+```
+
 ---
 
 ## Conferir se deu certo
@@ -134,6 +148,6 @@ No SQL Editor, rode:
 SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;
 ```
 
-Você deve ver: `events`, `folders`, `telegram_link_tokens`, `telegram_users`, `users`.
+Você deve ver: `events`, `folders`, `telegram_link_tokens`, `telegram_users`, `users` (e opcionalmente `telegram_bot_state`).
 
 Depois disso, o registro e login do app (com `DATABASE_URL` e `AUTH_SECRET` configurados) devem funcionar.

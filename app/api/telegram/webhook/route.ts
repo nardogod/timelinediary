@@ -6,9 +6,10 @@ import {
   unlinkTelegramUser,
   validateAndUseToken,
 } from '@/lib/db/telegram';
+import { getBotState, setBotState, clearBotState, type BotStep, type BotStatePayload } from '@/lib/db/telegram-state';
 import { getEventsByUserId, createEvent } from '@/lib/db/events';
-import { parseEventMessage, parseEventMessageWithValidation } from '@/lib/telegram-parser';
-import { validateEvent } from '@/lib/validators';
+import { parseDate } from '@/lib/telegram-parser';
+import { validateEvent, sanitizeTitle, sanitizeLink, validateLink } from '@/lib/validators';
 
 function validateWebhook(request: NextRequest): boolean {
   const secret = request.headers.get('x-telegram-bot-api-secret-token');
@@ -99,35 +100,37 @@ export async function POST(request: NextRequest) {
         case '/start':
           await bot.api.sendMessage(
             chatId,
-            '👋 Olá! Bem-vindo ao Timeline Diary.\n\n' +
-              '📝 Criar evento (escolha um):\n\n' +
-              '• Só o título (usa hoje):\n' +
-              '  Reunião importante\n\n' +
-              '• Título e data:\n' +
-              '  Reunião | amanhã\n' +
-              '  Apresentação | 2026-02-20\n\n' +
-              '• Completo: Título | Data | Tipo\n' +
-              '  Ex.: Reunião | 2026-02-05 | important\n\n' +
-              '📅 Datas: hoje, amanhã, 2026-02-05, 05/02/2026\n\n' +
-              'Use /help para ver todos os comandos.'
+            '👋 Olá! Aqui você pode registrar o que *fez* ou o que *vai fazer* — desde coisas do dia a dia até eventos importantes.\n\n' +
+              '📝 Para adicionar um evento, é só me enviar uma mensagem com o nome. Exemplo:\n' +
+              '• "Comprar pão"\n' +
+              '• "Reunião com a equipe"\n' +
+              '• "Curso de inglês"\n\n' +
+              'Eu pergunto a data e a importância passo a passo. Simples assim.\n\n' +
+              'Use /help para ver os níveis de importância e outros comandos.',
+            { parse_mode: 'Markdown' }
           );
           break;
 
         case '/help':
           await bot.api.sendMessage(
             chatId,
-            '📚 Comandos (também no menu ao tocar em /):\n\n' +
-              '/start – Iniciar e ver exemplos\n' +
-              '/link <token> – Vincular conta (token do site)\n' +
-              '/desvincular – Desvincular esta conta do site\n' +
-              '/evento <título> <data> [tipo] – Criar evento\n' +
-              '/eventos – Ver meus últimos 5 eventos\n' +
-              '/help – Esta ajuda\n\n' +
-              '📝 Ou envie uma mensagem para criar evento:\n' +
-              '• Simples: "Reunião amanhã"\n' +
-              '• Com tipo: "Reunião | 2026-02-20 | important"'
+            '📚 *Como funciona*\n\n' +
+              'Envie o *nome do evento* (ex: "Reunião" ou "Comprar pão"). Eu pergunto:\n' +
+              '1️⃣ Esse é o nome?\n' +
+              '2️⃣ Qual a data? (hoje, amanhã, 20/02/2026…)\n' +
+              '3️⃣ Tem data de término? (para cursos, viagens)\n' +
+              '4️⃣ Nível de importância (1, 2 ou 3)\n' +
+              '5️⃣ Quer adicionar um link? (site do evento, material)\n\n' +
+              'Comandos: /start, /link, /desvincular, /eventos, /cancel',
+            { parse_mode: 'Markdown' }
           );
           break;
+
+        case '/cancel': {
+          await clearBotState(telegramId);
+          await bot.api.sendMessage(chatId, 'Tudo bem, cancelado. Quando quiser, é só enviar o nome de um evento.');
+          break;
+        }
 
         case '/desvincular': {
           const ok = await unlinkTelegramUser(userId);
@@ -235,53 +238,247 @@ export async function POST(request: NextRequest) {
           await bot.api.sendMessage(chatId, '❌ Comando não reconhecido. Use /help para ver os comandos disponíveis.');
       }
     } else {
-      const parseResult = parseEventMessageWithValidation(text);
-      if (!parseResult.event) {
-        let errorMessage = '❌ Não foi possível criar o evento.\n\n';
-        if (parseResult.errors.length > 0) {
-          errorMessage += 'Problemas encontrados:\n';
-          parseResult.errors.forEach((error, index) => {
-            errorMessage += `${index + 1}. ${error}\n`;
-          });
-          errorMessage += '\n';
+      const trimmed = text.trim();
+      const lower = trimmed.toLowerCase();
+
+      const isSim = (t: string) => /^(sim|s|yes|y|isso|é|eh)$/i.test(t.trim());
+      const isNao = (t: string) => /^(não|nao|n|no|nope)$/i.test(t.trim());
+      const parseLevel = (t: string): 'simple' | 'medium' | 'important' | null => {
+        const m = t.trim().replace(/nível|nivel/gi, '').trim();
+        if (/^1$/.test(m)) return 'simple';
+        if (/^2$/.test(m)) return 'medium';
+        if (/^3$/.test(m)) return 'important';
+        return null;
+      };
+
+      if (isNao(lower) && trimmed.length < 10) {
+        const state = await getBotState(telegramId);
+        if (state?.step === 'confirm_name') {
+          await clearBotState(telegramId);
+          await bot.api.sendMessage(chatId, 'Sem problema. Qual evento gostaria de adicionar? (Ex: Comprar pão, Reunião)');
+          return NextResponse.json({ ok: true });
         }
-        errorMessage +=
-          '💡 Dicas:\n• Envie apenas o título: "Reunião importante"\n• Ou use formato: "Título | Data | Tipo | Link"\n• Exemplo: "Reunião | 2026-02-20 | important"';
-        await bot.api.sendMessage(chatId, errorMessage);
+      }
+      if (lower === 'cancelar' || lower === 'cancel') {
+        await clearBotState(telegramId);
+        await bot.api.sendMessage(chatId, 'Tudo bem, cancelado. Quando quiser, é só enviar o nome de um evento.');
         return NextResponse.json({ ok: true });
       }
 
-      const validation = validateEvent(parseResult.event);
-      if (!validation.isValid) {
-        let errorMessage = '❌ Erros de validação:\n\n';
-        validation.errors.forEach((error, index) => {
-          errorMessage += `${index + 1}. ${error}\n`;
+      const state = await getBotState(telegramId);
+
+      if (!state) {
+        const title = sanitizeTitle(trimmed);
+        if (title.length < 2) {
+          await bot.api.sendMessage(chatId, 'Por favor, escreva o nome do evento (pelo menos 2 letras). Ex: Comprar pão');
+          return NextResponse.json({ ok: true });
+        }
+        await setBotState(telegramId, 'confirm_name', { title });
+        await bot.api.sendMessage(chatId, `Esse seria o nome do evento?\n\n«${title}»\n\nResponda sim ou não`);
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'confirm_name') {
+        if (isSim(lower)) {
+          await setBotState(telegramId, 'ask_date', { title: state.payload.title });
+          await bot.api.sendMessage(
+            chatId,
+            'Qual a data? (Pode ser algo que você já fez ou que vai fazer)\n\nEx: hoje, amanhã, 20/02/2026'
+          );
+        } else if (isNao(lower)) {
+          await clearBotState(telegramId);
+          await bot.api.sendMessage(chatId, 'Qual evento gostaria de adicionar? (Ex: Comprar pão, Reunião)');
+        } else {
+          await bot.api.sendMessage(chatId, 'Responda *sim* ou *não* para confirmar o nome.', { parse_mode: 'Markdown' });
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_date') {
+        const dateStr = parseDate(trimmed);
+        if (!dateStr) {
+          await bot.api.sendMessage(chatId, 'Não entendi a data. Tente: hoje, amanhã ou 20/02/2026');
+          return NextResponse.json({ ok: true });
+        }
+        await setBotState(telegramId, 'ask_has_end', { title: state.payload.title, date: dateStr });
+        await bot.api.sendMessage(
+          chatId,
+          'Esse evento tem *data de término*? (Ex: um curso de vários dias, uma viagem)\n\nResponda *sim* ou *não*',
+          { parse_mode: 'Markdown' }
+        );
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_has_end') {
+        if (isSim(lower)) {
+          await setBotState(telegramId, 'ask_end_date', { title: state.payload.title, date: state.payload.date });
+          await bot.api.sendMessage(chatId, 'Qual a data de término? (Ex: 25/02/2026 ou próxima semana)');
+        } else if (isNao(lower)) {
+          await setBotState(telegramId, 'ask_level', { title: state.payload.title, date: state.payload.date });
+          await bot.api.sendMessage(
+            chatId,
+            'Qual o nível de importância?\n\n' +
+              '• *1* – Menos importante (ex: comprar pão)\n' +
+              '• *2* – Médio (ex: reunião)\n' +
+              '• *3* – Muito importante (ex: entrevista de emprego)\n\n' +
+              'Responda 1, 2 ou 3',
+            { parse_mode: 'Markdown' }
+          );
+        } else {
+          await bot.api.sendMessage(chatId, 'Responda *sim* ou *não* para eu saber se tem data de término.', { parse_mode: 'Markdown' });
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_end_date') {
+        const endStr = parseDate(trimmed);
+        if (!endStr) {
+          await bot.api.sendMessage(chatId, 'Não entendi a data. Tente: 25/02/2026 ou próxima semana');
+          return NextResponse.json({ ok: true });
+        }
+        const startStr = state.payload.date!;
+        if (endStr < startStr) {
+          await bot.api.sendMessage(chatId, 'A data de término precisa ser igual ou depois da data de início. Tente de novo.');
+          return NextResponse.json({ ok: true });
+        }
+        await setBotState(telegramId, 'ask_level', {
+          title: state.payload.title,
+          date: state.payload.date,
+          end_date: endStr,
         });
-        await bot.api.sendMessage(chatId, errorMessage);
+        await bot.api.sendMessage(
+          chatId,
+          'Qual o nível de importância?\n\n' +
+            '• *1* – Menos importante\n' +
+            '• *2* – Médio\n' +
+            '• *3* – Muito importante\n\n' +
+            'Responda 1, 2 ou 3',
+          { parse_mode: 'Markdown' }
+        );
         return NextResponse.json({ ok: true });
       }
 
-      const newEvent = await createEvent({
-        user_id: userId,
-        title: parseResult.event.title,
-        date: parseResult.event.date,
-        type: parseResult.event.type,
-        link: parseResult.event.link ?? null,
-        folder_id: null,
-      });
+      if (state.step === 'ask_level') {
+        const level = parseLevel(trimmed);
+        if (!level) {
+          await bot.api.sendMessage(chatId, 'Responda *1*, *2* ou *3* para o nível de importância.', { parse_mode: 'Markdown' });
+          return NextResponse.json({ ok: true });
+        }
+        const validation = validateEvent({
+          title: state.payload.title!,
+          date: state.payload.date!,
+          type: level,
+        });
+        if (!validation.isValid) {
+          await bot.api.sendMessage(chatId, validation.errors.join('\n'));
+          return NextResponse.json({ ok: true });
+        }
+        await setBotState(telegramId, 'ask_has_link', {
+          title: state.payload.title,
+          date: state.payload.date,
+          end_date: state.payload.end_date,
+          type: level,
+        });
+        await bot.api.sendMessage(
+          chatId,
+          'Quer adicionar um *link* ao evento? (Ex: site do evento, material, página)\n\nResponda *sim* ou *não*',
+          { parse_mode: 'Markdown' }
+        );
+        return NextResponse.json({ ok: true });
+      }
 
-      if (newEvent) {
-        const formattedDate = new Date(newEvent.date).toLocaleDateString('pt-BR');
-        const typeEmoji = { simple: '🟢', medium: '🟡', important: '🔴' };
-        await bot.api.sendMessage(
-          chatId,
-          `✅ Evento criado com sucesso!\n\n📝 ${newEvent.title}\n📅 ${formattedDate}\n${typeEmoji[newEvent.type]} ${newEvent.type}${newEvent.link ? `\n🔗 ${newEvent.link}` : ''}`
-        );
-      } else {
-        await bot.api.sendMessage(
-          chatId,
-          '❌ Erro ao criar evento. Tente novamente ou use /help para ver exemplos.'
-        );
+      if (state.step === 'ask_has_link') {
+        if (isSim(lower)) {
+          await setBotState(telegramId, 'ask_link', {
+            title: state.payload.title,
+            date: state.payload.date,
+            end_date: state.payload.end_date,
+            type: state.payload.type,
+          });
+          await bot.api.sendMessage(chatId, 'Qual o link? (Cole a URL completa, ex: https://exemplo.com)');
+        } else if (isNao(lower)) {
+          const newEvent = await createEvent({
+            user_id: userId,
+            title: state.payload.title!,
+            date: state.payload.date!,
+            end_date: state.payload.end_date ?? null,
+            type: state.payload.type!,
+            link: null,
+            folder_id: null,
+          });
+          await clearBotState(telegramId);
+          if (newEvent) {
+            const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+            const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+            let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
+            if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
+            msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
+            await bot.api.sendMessage(chatId, msg);
+          } else {
+            await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+          }
+        } else {
+          await bot.api.sendMessage(chatId, 'Responda *sim* ou *não* para o link.', { parse_mode: 'Markdown' });
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_link') {
+        if (isNao(lower) || lower === 'pular' || lower === 'skip') {
+          const newEvent = await createEvent({
+            user_id: userId,
+            title: state.payload.title!,
+            date: state.payload.date!,
+            end_date: state.payload.end_date ?? null,
+            type: state.payload.type!,
+            link: null,
+            folder_id: null,
+          });
+          await clearBotState(telegramId);
+          if (newEvent) {
+            const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+            const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+            let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
+            if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
+            msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
+            await bot.api.sendMessage(chatId, msg);
+          } else {
+            await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+          }
+          return NextResponse.json({ ok: true });
+        }
+        const link = sanitizeLink(trimmed);
+        if (!link) {
+          await bot.api.sendMessage(chatId, 'Não consegui identificar um link válido. Envie uma URL (ex: https://exemplo.com) ou responda "não" para pular.');
+          return NextResponse.json({ ok: true });
+        }
+        const linkValidation = validateLink(link);
+        if (!linkValidation.isValid) {
+          await bot.api.sendMessage(chatId, linkValidation.errors.join('\n'));
+          return NextResponse.json({ ok: true });
+        }
+        const newEvent = await createEvent({
+          user_id: userId,
+          title: state.payload.title!,
+          date: state.payload.date!,
+          end_date: state.payload.end_date ?? null,
+          type: state.payload.type!,
+          link,
+          folder_id: null,
+        });
+        await clearBotState(telegramId);
+        if (newEvent) {
+          const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+          const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+          let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
+          if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
+          msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
+          msg += `\n🔗 ${newEvent.link}`;
+          await bot.api.sendMessage(chatId, msg);
+        } else {
+          await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+        }
+        return NextResponse.json({ ok: true });
       }
     }
   } catch (error) {

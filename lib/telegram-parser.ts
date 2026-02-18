@@ -213,9 +213,10 @@ function parseSimpleFormat(text: string): ParsedEvent {
 }
 
 /**
- * Parseia uma string de data em vários formatos
+ * Parseia uma string de data em vários formatos (hoje, amanhã, DD/MM/YYYY, YYYY-MM-DD).
+ * Exportado para uso no bot conversacional.
  */
-function parseDate(dateStr: string): string | null {
+export function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr.trim().length === 0) {
     return null;
   }

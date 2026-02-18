@@ -39,12 +39,12 @@ loadEnvLocal();
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 const COMMANDS = [
-  { command: 'start', description: 'Iniciar e ver como usar o bot' },
-  { command: 'link', description: 'Vincular conta (pegue o token no site)' },
+  { command: 'start', description: 'Iniciar e ver como adicionar eventos' },
+  { command: 'help', description: 'Níveis de importância e comandos' },
+  { command: 'link', description: 'Vincular conta (token do site)' },
   { command: 'desvincular', description: 'Desvincular esta conta do site' },
-  { command: 'help', description: 'Ver ajuda e formatos para criar eventos' },
-  { command: 'evento', description: 'Criar evento: título, data e tipo' },
   { command: 'eventos', description: 'Ver meus últimos 5 eventos' },
+  { command: 'cancel', description: 'Cancelar evento em andamento' },
 ];
 
 async function main() {

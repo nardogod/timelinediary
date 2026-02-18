@@ -143,13 +143,27 @@ Depois disso você pode criar eventos enviando mensagens para o bot (veja `/help
 
 ---
 
-## 9. Testar o bot
+## 9. Fluxo do bot (conversacional)
 
-- **/start** — mensagem de boas-vindas e instruções.
-- **/help** — lista de comandos e formato de mensagens para criar eventos.
-- **/desvincular** — desvincula a conta Telegram do site.
-- **Mensagem simples** — ex.: `Reunião amanhã` (cria evento com título e data de amanhã).
-- **Formato estruturado** — ex.: `Reunião | 2026-02-20 | important`.
+O bot pergunta passo a passo:
+
+1. **Nome** — O usuário envia o nome do evento (ex: "Comprar pão"). O bot pergunta: "Esse seria o nome?"
+2. **Data** — Responde sim → pergunta a data (hoje, amanhã, 20/02/2026).
+3. **Data de término** — Para cursos ou eventos com duração: responde sim e informa a data de fim.
+4. **Nível** — 1 = menos importante (ex: comprar pão), 2 = médio, 3 = muito importante (ex: entrevista).
+5. **Link** — O bot pergunta se quer adicionar um link (site do evento, material). Em sim, o usuário envia a URL.
+
+Comando **/cancel** (ou escrever "cancelar") interrompe o fluxo. Para esse fluxo funcionar, a tabela `telegram_bot_state` precisa existir no Neon (migration `neon/migrations/002_telegram_bot_state.sql`).
+
+---
+
+## 10. Testar o bot
+
+- **/start** — boas-vindas e como adicionar eventos.
+- **/help** — níveis de importância e comandos.
+- **Enviar uma mensagem** — ex.: "Reunião" → o bot inicia o fluxo (nome → data → término → nível).
+- **/eventos** — lista os últimos 5 eventos.
+- **/desvincular** — desvincula a conta. **/cancel** — cancela evento em andamento.
 
 Se algo falhar, confira:
 - `TELEGRAM_BOT_TOKEN` e `TELEGRAM_WEBHOOK_SECRET` no ambiente (local e/ou Vercel).
@@ -169,6 +183,7 @@ Se algo falhar, confira:
 | 5 | (Opcional) `npm run telegram:commands` — comandos no menu do chat |
 | 6 | (Produção) Chamar `setWebhook` com a URL do app (ex.: Vercel) |
 | 7 | No app: Configurações → Telegram → Gerar token → no bot: `/link <token>` |
-| 8 | Testar com `/start`, `/help` e uma mensagem de evento |
+| 8 | (Opcional) Rodar migration `002_telegram_bot_state.sql` no Neon (fluxo passo a passo) |
+| 9 | Testar: enviar nome de evento → seguir as perguntas do bot |
 
 Para deploy completo (Vercel + variáveis + webhook), use também `docs/CHECKLIST_DEPLOY.md` e `docs/FALTA_PARA_PRODUCAO.md`.
