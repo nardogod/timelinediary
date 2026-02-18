@@ -375,6 +375,17 @@ body {
   }
 }
 
+/* Safe area para notch e barra de gestos (smartphone) */
+.safe-area-padding {
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+/* Header fixo pode usar safe-area no topo */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
 /* Otimizações para mobile */
 @media (max-width: 640px) {
   /* Melhora performance de scroll em mobile */
@@ -401,6 +412,12 @@ body {
   .animated-background-waves,
   .animated-background-particles {
     filter: blur(30px);
+  }
+
+  /* Área de toque mínima 44px (acessibilidade e usabilidade em smartphone) */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

@@ -394,7 +394,7 @@ export default function UserTimelinePage({ params }: PageProps) {
           <div className="absolute inset-0 z-[1] pointer-events-none bg-white/10" aria-hidden="true" />
         )}
         {/* Header com perfil e controles (adaptativo ao tema: leve no Tema 3) */}
-        <div className={`backdrop-blur-md border-b px-4 py-3 flex-shrink-0 relative z-10 transition-colors duration-300 ${
+        <div         className={`backdrop-blur-md border-b px-4 py-3 flex-shrink-0 relative z-10 transition-colors duration-300 safe-area-top ${
           isTema3
             ? 'bg-white/70 border-slate-200/60 shadow-sm'
             : isTema2 
@@ -404,13 +404,13 @@ export default function UserTimelinePage({ params }: PageProps) {
         role="banner"
         >
           <div className="flex flex-col gap-3 max-w-7xl mx-auto">
-            {/* Top row: Perfil e Menu */}
+            {/* Top row: Perfil e Menu — botões 44px no mobile */}
             <div className="flex items-center justify-between">
               {/* Início + Perfil */}
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <Link
                   href="/"
-                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 touch-target flex items-center justify-center ${
                     isTema3 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : isTema2 ? 'bg-violet-700/80 hover:bg-violet-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'
                   }`}
                   aria-label="Voltar ao início"
@@ -435,11 +435,11 @@ export default function UserTimelinePage({ params }: PageProps) {
                 {currentUser && user && currentUser.id === user.id && (
                   <Link
                     href={`/u/${username}/create`}
-                    className={`ml-2 flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`ml-2 flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target min-h-[44px] sm:min-h-0 ${
                       isTema3 ? 'btn-gradient text-white' : isTema2 ? 'btn-gradient text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
                     }`}
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span className="hidden sm:inline">Criar evento</span>
                   </Link>
                 )}
@@ -454,7 +454,7 @@ export default function UserTimelinePage({ params }: PageProps) {
                 <ZoomControls />
                 <button
                   onClick={() => setDashboardOpen(!dashboardOpen)}
-                  className={`p-2 rounded-lg transition-colors ${
+                  className={`p-2 rounded-lg transition-colors touch-target flex items-center justify-center ${
                     isTema3 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : isTema2 ? 'bg-violet-700/80 hover:bg-violet-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'
                   }`}
                   aria-label={dashboardOpen ? "Fechar dashboard" : "Abrir dashboard"}

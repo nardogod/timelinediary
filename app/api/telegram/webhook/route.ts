@@ -16,6 +16,29 @@ function validateWebhook(request: NextRequest): boolean {
   return secret === process.env.TELEGRAM_WEBHOOK_SECRET;
 }
 
+/** Teclados clicáveis (ReplyKeyboard) — ao tocar, envia o texto do botão */
+const KEYBOARD_SIM_NAO = {
+  keyboard: [[{ text: 'Sim' }, { text: 'Não' }]],
+  one_time_keyboard: true,
+  resize_keyboard: true,
+};
+const KEYBOARD_NIVEL = {
+  keyboard: [[{ text: '1' }, { text: '2' }, { text: '3' }]],
+  one_time_keyboard: true,
+  resize_keyboard: true,
+};
+const KEYBOARD_PULAR = {
+  keyboard: [[{ text: 'Pular' }]],
+  one_time_keyboard: true,
+  resize_keyboard: true,
+};
+const KEYBOARD_DATA_RAPIDA = {
+  keyboard: [[{ text: 'Hoje' }, { text: 'Amanhã' }]],
+  one_time_keyboard: true,
+  resize_keyboard: true,
+};
+const REMOVE_KEYBOARD = { remove_keyboard: true as const };
+
 export async function POST(request: NextRequest) {
   if (!validateWebhook(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -275,7 +298,9 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ ok: true });
         }
         await setBotState(telegramId, 'confirm_name', { title });
-        await bot.api.sendMessage(chatId, `Esse seria o nome do evento?\n\n«${title}»\n\nResponda sim ou não`);
+        await bot.api.sendMessage(chatId, `Esse seria o nome do evento?\n\n«${title}»`, {
+          reply_markup: KEYBOARD_SIM_NAO,
+        });
         return NextResponse.json({ ok: true });
       }
 
@@ -284,13 +309,18 @@ export async function POST(request: NextRequest) {
           await setBotState(telegramId, 'ask_date', { title: state.payload.title });
           await bot.api.sendMessage(
             chatId,
-            'Qual a data? (Pode ser algo que você já fez ou que vai fazer)\n\nEx: hoje, amanhã, 20/02/2026'
+            'Qual a data? (Pode ser algo que você já fez ou que vai fazer)\n\nToque em um botão ou digite: hoje, amanhã, 20/02/2026',
+            { reply_markup: KEYBOARD_DATA_RAPIDA }
           );
         } else if (isNao(lower)) {
           await clearBotState(telegramId);
-          await bot.api.sendMessage(chatId, 'Qual evento gostaria de adicionar? (Ex: Comprar pão, Reunião)');
+          await bot.api.sendMessage(chatId, 'Qual evento gostaria de adicionar? (Ex: Comprar pão, Reunião)', {
+            reply_markup: REMOVE_KEYBOARD,
+          });
         } else {
-          await bot.api.sendMessage(chatId, 'Responda *sim* ou *não* para confirmar o nome.', { parse_mode: 'Markdown' });
+          await bot.api.sendMessage(chatId, 'Toque em um botão abaixo:', {
+            reply_markup: KEYBOARD_SIM_NAO,
+          });
         }
         return NextResponse.json({ ok: true });
       }
@@ -304,8 +334,8 @@ export async function POST(request: NextRequest) {
         await setBotState(telegramId, 'ask_has_end', { title: state.payload.title, date: dateStr });
         await bot.api.sendMessage(
           chatId,
-          'Esse evento tem *data de término*? (Ex: um curso de vários dias, uma viagem)\n\nResponda *sim* ou *não*',
-          { parse_mode: 'Markdown' }
+          'Esse evento tem data de término? (Ex: um curso de vários dias, uma viagem)',
+          { reply_markup: KEYBOARD_SIM_NAO }
         );
         return NextResponse.json({ ok: true });
       }
@@ -313,20 +343,18 @@ export async function POST(request: NextRequest) {
       if (state.step === 'ask_has_end') {
         if (isSim(lower)) {
           await setBotState(telegramId, 'ask_end_date', { title: state.payload.title, date: state.payload.date });
-          await bot.api.sendMessage(chatId, 'Qual a data de término? (Ex: 25/02/2026 ou próxima semana)');
+          await bot.api.sendMessage(chatId, 'Qual a data de término? (Ex: 25/02/2026 ou próxima semana)', {
+            reply_markup: REMOVE_KEYBOARD,
+          });
         } else if (isNao(lower)) {
           await setBotState(telegramId, 'ask_level', { title: state.payload.title, date: state.payload.date });
           await bot.api.sendMessage(
             chatId,
-            'Qual o nível de importância?\n\n' +
-              '• *1* – Menos importante (ex: comprar pão)\n' +
-              '• *2* – Médio (ex: reunião)\n' +
-              '• *3* – Muito importante (ex: entrevista de emprego)\n\n' +
-              'Responda 1, 2 ou 3',
-            { parse_mode: 'Markdown' }
+            'Qual o nível de importância?\n\n• 1 – Menos importante (ex: comprar pão)\n• 2 – Médio (ex: reunião)\n• 3 – Muito importante (ex: entrevista)',
+            { reply_markup: KEYBOARD_NIVEL }
           );
         } else {
-          await bot.api.sendMessage(chatId, 'Responda *sim* ou *não* para eu saber se tem data de término.', { parse_mode: 'Markdown' });
+          await bot.api.sendMessage(chatId, 'Toque em um botão:', { reply_markup: KEYBOARD_SIM_NAO });
         }
         return NextResponse.json({ ok: true });
       }
@@ -349,12 +377,8 @@ export async function POST(request: NextRequest) {
         });
         await bot.api.sendMessage(
           chatId,
-          'Qual o nível de importância?\n\n' +
-            '• *1* – Menos importante\n' +
-            '• *2* – Médio\n' +
-            '• *3* – Muito importante\n\n' +
-            'Responda 1, 2 ou 3',
-          { parse_mode: 'Markdown' }
+          'Qual o nível de importância?\n\n• 1 – Menos importante\n• 2 – Médio\n• 3 – Muito importante',
+          { reply_markup: KEYBOARD_NIVEL }
         );
         return NextResponse.json({ ok: true });
       }
@@ -362,7 +386,7 @@ export async function POST(request: NextRequest) {
       if (state.step === 'ask_level') {
         const level = parseLevel(trimmed);
         if (!level) {
-          await bot.api.sendMessage(chatId, 'Responda *1*, *2* ou *3* para o nível de importância.', { parse_mode: 'Markdown' });
+          await bot.api.sendMessage(chatId, 'Toque em 1, 2 ou 3:', { reply_markup: KEYBOARD_NIVEL });
           return NextResponse.json({ ok: true });
         }
         const validation = validateEvent({
@@ -382,8 +406,8 @@ export async function POST(request: NextRequest) {
         });
         await bot.api.sendMessage(
           chatId,
-          'Quer adicionar um *link* ao evento? (Ex: site do evento, material, página)\n\nResponda *sim* ou *não*',
-          { parse_mode: 'Markdown' }
+          'Quer adicionar um link ao evento? (Ex: site do evento, material)',
+          { reply_markup: KEYBOARD_SIM_NAO }
         );
         return NextResponse.json({ ok: true });
       }
@@ -396,7 +420,9 @@ export async function POST(request: NextRequest) {
             end_date: state.payload.end_date,
             type: state.payload.type,
           });
-          await bot.api.sendMessage(chatId, 'Qual o link? (Cole a URL completa, ex: https://exemplo.com)');
+          await bot.api.sendMessage(chatId, 'Qual o link? (Cole a URL ou toque em Pular)', {
+            reply_markup: KEYBOARD_PULAR,
+          });
         } else if (isNao(lower)) {
           const newEvent = await createEvent({
             user_id: userId,
@@ -414,12 +440,12 @@ export async function POST(request: NextRequest) {
             let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
             if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
             msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
-            await bot.api.sendMessage(chatId, msg);
+            await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
           } else {
             await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
           }
         } else {
-          await bot.api.sendMessage(chatId, 'Responda *sim* ou *não* para o link.', { parse_mode: 'Markdown' });
+          await bot.api.sendMessage(chatId, 'Toque em um botão:', { reply_markup: KEYBOARD_SIM_NAO });
         }
         return NextResponse.json({ ok: true });
       }
@@ -442,7 +468,7 @@ export async function POST(request: NextRequest) {
             let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
             if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
             msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
-            await bot.api.sendMessage(chatId, msg);
+            await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
           } else {
             await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
           }
@@ -450,7 +476,9 @@ export async function POST(request: NextRequest) {
         }
         const link = sanitizeLink(trimmed);
         if (!link) {
-          await bot.api.sendMessage(chatId, 'Não consegui identificar um link válido. Envie uma URL (ex: https://exemplo.com) ou responda "não" para pular.');
+          await bot.api.sendMessage(chatId, 'Não consegui identificar um link válido. Envie uma URL ou toque em Pular.', {
+            reply_markup: KEYBOARD_PULAR,
+          });
           return NextResponse.json({ ok: true });
         }
         const linkValidation = validateLink(link);
@@ -475,7 +503,7 @@ export async function POST(request: NextRequest) {
           if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
           msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
           msg += `\n🔗 ${newEvent.link}`;
-          await bot.api.sendMessage(chatId, msg);
+          await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
         } else {
           await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
         }
