@@ -15,6 +15,7 @@ import ToastContainer, { useToast } from '@/components/Toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import Tooltip from '@/components/Tooltip';
 import NotesList from '@/components/NotesList';
+import AvatarSelector from '@/components/AvatarSelector';
 import { Menu, X, ArrowLeft, Plus, Home } from 'lucide-react';
 import GlobalSearch from '@/components/GlobalSearch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,6 +61,9 @@ export default function UserTimelinePage({ params }: PageProps) {
   const [completedTasksCount, setCompletedTasksCount] = useState<Map<string, number>>(new Map());
   const [totalCompletedTasks, setTotalCompletedTasks] = useState<number>(0);
   const [monthCompletedTasks, setMonthCompletedTasks] = useState<number>(0);
+  const [eventIdsWithViews, setEventIdsWithViews] = useState<Set<string>>(new Set());
+  const [fanRank, setFanRank] = useState<Array<{ rank: number; username: string | null; name: string | null; viewCount: number }>>([]);
+  const [avatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
 
   const loadUserData = useCallback(async () => {
     if (!username) return;
@@ -148,6 +152,35 @@ export default function UserTimelinePage({ params }: PageProps) {
       taskId: (e as any).task_id ?? undefined,
     }));
     setAllEvents(mappedEvents);
+
+    // Eventos cujo link foi visualizado (para selo "Visualizado") — só carrega se logado
+    if (currentUser) {
+      try {
+        const viewsRes = await fetch(`/api/link-views/event-ids-with-views?userId=${user.id}`);
+        if (viewsRes.ok) {
+          const { eventIds } = await viewsRes.json();
+          setEventIdsWithViews(new Set(Array.isArray(eventIds) ? eventIds : []));
+        }
+      } catch (err) {
+        console.warn('Failed to load link views:', err);
+      }
+    } else {
+      setEventIdsWithViews(new Set());
+    }
+
+    // Ranking de fãs (quem clicou nos links da timeline)
+    try {
+      const fansRes = await fetch(`/api/fans/rank?username=${encodeURIComponent(username)}`);
+      if (fansRes.ok) {
+        const { fans } = await fansRes.json();
+        setFanRank(Array.isArray(fans) ? fans : []);
+      } else {
+        setFanRank([]);
+      }
+    } catch (err) {
+      console.warn('Failed to load fan rank:', err);
+      setFanRank([]);
+    }
 
     setFolders(
       apiFolders.map((f) => ({
@@ -516,12 +549,31 @@ export default function UserTimelinePage({ params }: PageProps) {
                 >
                   <Home className="w-5 h-5" />
                 </Link>
-                <img
-                  src={settings?.avatarUrl || user?.avatar || ''}
-                  alt={user?.name || ''}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex-shrink-0"
-                  style={{ border: '1px solid var(--border-avatar)' }}
-                />
+                {currentUser && user && currentUser.id === user.id ? (
+                  <button
+                    onClick={() => setAvatarSelectorOpen(true)}
+                    className="relative flex-shrink-0 group"
+                    aria-label="Alterar avatar"
+                    title="Clique para escolher um avatar"
+                  >
+                    <img
+                      src={settings?.avatarUrl || user?.avatar || ''}
+                      alt={user?.name || ''}
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex-shrink-0 transition-all group-hover:ring-2 group-hover:ring-blue-500/50 group-hover:scale-110"
+                      style={{ border: '1px solid var(--border-avatar)' }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-white text-xs">✏️</span>
+                    </div>
+                  </button>
+                ) : (
+                  <img
+                    src={settings?.avatarUrl || user?.avatar || ''}
+                    alt={user?.name || ''}
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex-shrink-0"
+                    style={{ border: '1px solid var(--border-avatar)' }}
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <h1 className={`font-bold text-sm truncate ${isTema3 ? 'text-slate-800' : 'text-white'}`}>{user?.name || ''}</h1>
                   <p className={`text-xs truncate ${isTema3 ? 'text-slate-500' : isTema2 ? 'text-violet-200' : 'text-slate-400'}`}>@{user?.username || ''}</p>
@@ -661,8 +713,28 @@ export default function UserTimelinePage({ params }: PageProps) {
               username={username}
               onEventDeleted={loadUserData}
               onTaskEdited={loadUserData}
+              eventIdsWithViews={eventIdsWithViews}
             />
           </div>
+
+          {/* Ranking de fãs: quem clicou nos links da timeline (Fan #1, #2, ...) */}
+          {fanRank.length > 0 && (
+            <div className={`flex-shrink-0 px-3 py-2 border-t text-xs sm:text-sm ${
+              isTema3 ? 'bg-white/60 border-slate-200/60 text-slate-700' : isTema2 ? 'bg-violet-950/80 border-violet-700/50 text-violet-200' : 'bg-slate-800/80 border-slate-700/50 text-slate-300'
+            }`}>
+              <div className="font-medium mb-1">🏅 Ranking de fãs</div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                {fanRank.slice(0, 10).map((f) => (
+                  <span key={f.rank}>
+                    <span className="opacity-80">#{f.rank}</span>{' '}
+                    {f.username ? `@${f.username}` : f.name || 'Anônimo'}
+                    {f.viewCount > 1 && <span className="opacity-70"> ({f.viewCount} cliques)</span>}
+                  </span>
+                ))}
+                {fanRank.length > 10 && <span className="opacity-70">+{fanRank.length - 10} mais</span>}
+              </div>
+            </div>
+          )}
 
           {/* Dashboard - aparece abaixo da timeline (estilo adaptativo ao tema) */}
           {dashboardOpen && (
@@ -701,6 +773,22 @@ export default function UserTimelinePage({ params }: PageProps) {
             setNotesFolderName('');
           }}
           onTaskCompleted={() => {
+            loadUserData();
+          }}
+        />
+      )}
+
+      {/* Avatar Selector Modal */}
+      {currentUser && user && currentUser.id === user.id && (
+        <AvatarSelector
+          isOpen={avatarSelectorOpen}
+          onClose={() => setAvatarSelectorOpen(false)}
+          currentAvatar={settings?.avatarUrl || user?.avatar || null}
+          onAvatarSelected={(avatarUrl) => {
+            // Atualiza o estado local para feedback imediato
+            if (user) {
+              setProfileUser({ ...user, avatar: avatarUrl });
+            }
             loadUserData();
           }}
         />

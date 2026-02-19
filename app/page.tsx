@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import FollowButton from '@/components/FollowButton';
+import AvatarSelector from '@/components/AvatarSelector';
 import { LogOut, User, Search } from 'lucide-react';
 
 type PublicUser = { id: string; username: string; name: string; avatar: string | null };
@@ -17,6 +18,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PublicUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [avatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
 
   // Não logado: só usuários em destaque (Leo1, teste@teste)
   useEffect(() => {
@@ -152,15 +154,23 @@ export default function Home() {
         {/* Header */}
         <div className="flex items-center justify-between mb-10 glass rounded-2xl p-5">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full overflow-hidden" style={{ border: '1px solid var(--border-avatar)' }}>
+            <button
+              onClick={() => setAvatarSelectorOpen(true)}
+              className="relative group"
+              aria-label="Alterar avatar"
+              title="Clique para escolher um avatar"
+            >
+              <div className="w-12 h-12 rounded-full overflow-hidden transition-all group-hover:ring-2 group-hover:ring-blue-500/50 group-hover:scale-110" style={{ border: '1px solid var(--border-avatar)' }}>
                 <img 
                   src={user.avatar ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} 
                   alt={user.name}
                   className="w-full h-full rounded-full object-cover"
                 />
               </div>
-            </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs">✏️</span>
+              </div>
+            </button>
             <div>
               <h1 className="text-primary font-semibold text-xl">Olá, {user.name}</h1>
               <p className="text-secondary text-sm">@{user.username}</p>
@@ -352,6 +362,17 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* Avatar Selector Modal */}
+      <AvatarSelector
+        isOpen={avatarSelectorOpen}
+        onClose={() => setAvatarSelectorOpen(false)}
+        currentAvatar={user?.avatar ?? null}
+        onAvatarSelected={(avatarUrl) => {
+          // Recarrega a página para atualizar o avatar
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

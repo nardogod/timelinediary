@@ -26,9 +26,11 @@ interface TimelineProps {
   onEventDeleted?: () => void;
   /** Callback após editar uma tarefa (para recarregar timeline) */
   onTaskEdited?: () => void;
+  /** IDs de eventos cujo link foi visualizado por alguém (para mostrar selo "Visualizado") */
+  eventIdsWithViews?: Set<string>;
 }
 
-function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited }: TimelineProps) {
+function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited, eventIdsWithViews }: TimelineProps) {
   const { zoom, pan, isDragging, setIsDragging, setPan, handleZoomChange, handleReset } = useTimeline();
   const [dragStart, setDragStart] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -486,6 +488,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
                   username={username}
                   onEventDeleted={onEventDeleted}
                   onTaskEdited={onTaskEdited}
+                  linkViewed={eventIdsWithViews?.has(event.id)}
                 />
               );
             })}

@@ -22,9 +22,11 @@ interface TimelineEventProps {
   username?: string;
   onEventDeleted?: () => void;
   onTaskEdited?: () => void;
+  /** Link deste evento foi clicado por alguém (selo "Visualizado") */
+  linkViewed?: boolean;
 }
 
-function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted, onTaskEdited }: TimelineEventProps) {
+function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted, onTaskEdited, linkViewed }: TimelineEventProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [showPreview, setShowPreview] = useState(false);
@@ -100,32 +102,41 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
     }
   }, [isExpanded]);
 
-  const handleLinkClick = useCallback((e: React.MouseEvent) => {
+  const handleLinkClick = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (event.link) {
-      // Tracking Mixpanel
-      trackEvent('event_link_click', {
-        eventId: event.id,
-        title: event.title,
-        date: event.date,
-        type: event.type,
-        link: event.link,
-        folder: event.folder || null,
-        viewerUserId: user?.id ?? null,
-        profileUsername: username ?? null,
-      });
+    if (!event.link) return;
 
-      // Cancela qualquer timeout pendente
-      if (collapseTimeoutRef.current) {
-        clearTimeout(collapseTimeoutRef.current);
-        collapseTimeoutRef.current = null;
+    // Registra visualização do link (selo "visualizado" + ranking de fãs)
+    if (user?.id && event.userId && user.id !== event.userId) {
+      try {
+        await fetch('/api/link-views', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventId: event.id }),
+        });
+      } catch (err) {
+        console.warn('Link view record failed:', err);
       }
-      // Abre o link
-      window.open(event.link, '_blank', 'noopener,noreferrer');
-      // Colapsa imediatamente após abrir o link para não atrapalhar visualização
-      setIsExpanded(false);
     }
-  }, [event.id, event.title, event.date, event.type, event.link, event.folder, user?.id, username]);
+
+    trackEvent('event_link_click', {
+      eventId: event.id,
+      title: event.title,
+      date: event.date,
+      type: event.type,
+      link: event.link,
+      folder: event.folder || null,
+      viewerUserId: user?.id ?? null,
+      profileUsername: username ?? null,
+    });
+
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current);
+      collapseTimeoutRef.current = null;
+    }
+    window.open(event.link, '_blank', 'noopener,noreferrer');
+    setIsExpanded(false);
+  }, [event.id, event.title, event.date, event.type, event.link, event.folder, event.userId, user?.id, username]);
 
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     if (eventRef.current && !isExpanded) {
@@ -352,14 +363,21 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
               {formatDateShort(event.date)}
             </div>
             {isExpanded && event.link && (
-              <button
-                onClick={handleLinkClick}
-                className="flex items-center justify-center gap-1.5 mt-2 px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded transition-colors w-full text-[10px] sm:text-xs font-medium"
-                aria-label={`Abrir link: ${event.link}`}
-              >
-                <ExternalLink className="w-3 h-3" />
-                <span className="truncate max-w-[200px]">{event.link}</span>
-              </button>
+              <div className="mt-2 flex flex-col gap-1">
+                <button
+                  onClick={handleLinkClick}
+                  className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-white/20 hover:bg-white/30 rounded transition-colors w-full text-[10px] sm:text-xs font-medium"
+                  aria-label={`Abrir link: ${event.link}`}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="truncate max-w-[200px]">{event.link}</span>
+                </button>
+                {linkViewed && (
+                  <span className="text-[10px] opacity-80 text-center" title="Alguém clicou neste link">
+                    👁 Visualizado
+                  </span>
+                )}
+              </div>
             )}
             {isExpanded && canEdit && (
               <>
@@ -455,7 +473,7 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
             )}
             {!isExpanded && event.link && (
               <div className="text-[8px] sm:text-[10px] opacity-75 text-center mt-0.5">
-                🔗 Link
+                🔗 Link {linkViewed && '• 👁'}
               </div>
             )}
           </div>

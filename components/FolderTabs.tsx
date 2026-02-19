@@ -16,25 +16,22 @@ interface FolderTabsProps {
 }
 
 function FolderTabs({ folders, events, selectedFolder, onSelectFolder, onOpenNotes, completedTasksCount = new Map(), totalCompletedTasks = 0 }: FolderTabsProps) {
-  // Memoiza contagem de eventos por pasta (incluindo tarefas concluídas)
+  // Contagem 100% baseada na lista de eventos da página (evita divergência com API)
+  // Cada pasta mostra quantos eventos existem nela (regulares + tarefas concluídas na timeline)
   const eventCounts = useMemo(() => {
     const counts = new Map<string | null, number>();
     
-    // Total: eventos regulares (sem tarefas) + tarefas concluídas
-    // Eventos de tarefas têm taskId e são contados separadamente
-    const regularEventsCount = events.filter(e => !e.taskId).length;
-    counts.set(null, regularEventsCount + totalCompletedTasks);
+    // Total: todos os eventos (a lista "events" já contém todos, incluindo de tarefas)
+    counts.set(null, events.length);
     
     folders.forEach(folder => {
-      // Conta apenas eventos regulares (não tarefas concluídas, que são contadas separadamente)
-      // Eventos de tarefas têm taskId e são contados via completedTasksCount
-      const folderEventsCount = events.filter(e => e.folder === folder.name && !e.taskId).length;
-      const folderTasksCount = completedTasksCount.get(folder.id) || 0;
-      counts.set(folder.name, folderEventsCount + folderTasksCount);
+      // Eventos cuja pasta é esta (por nome) — inclui regulares e eventos de tarefa
+      const folderTotal = events.filter(e => e.folder === folder.name).length;
+      counts.set(folder.name, folderTotal);
     });
     
     return counts;
-  }, [folders, events, completedTasksCount, totalCompletedTasks]);
+  }, [folders, events]);
 
   // Memoiza função de contagem
   const getEventCount = useMemo(() => {
