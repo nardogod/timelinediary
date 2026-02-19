@@ -73,7 +73,7 @@ export default function GlobalSearch({ currentUsername, onGoToEvent, className =
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+        className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-target"
         aria-label="Buscar eventos e usuários"
       >
         <Search className="w-5 h-5 text-white" />

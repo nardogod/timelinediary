@@ -393,34 +393,35 @@ export default function UserTimelinePage({ params }: PageProps) {
         {animatedBackgroundClass && isTema3 && (
           <div className="absolute inset-0 z-[1] pointer-events-none bg-white/10" aria-hidden="true" />
         )}
-        {/* Header com perfil e controles (adaptativo ao tema: leve no Tema 3) */}
-        <div         className={`backdrop-blur-md border-b px-4 py-3 flex-shrink-0 relative z-10 transition-colors duration-300 safe-area-top ${
-          isTema3
-            ? 'bg-white/70 border-slate-200/60 shadow-sm'
-            : isTema2 
-              ? 'bg-violet-900/70 border-violet-700/50' 
-              : 'bg-slate-800/80 border-slate-700/50'
-        }`}
-        role="banner"
+        {/* Header com perfil e controles — layout mobile primeiro */}
+        <div
+          className={`backdrop-blur-md border-b px-3 py-2 sm:px-4 sm:py-3 flex-shrink-0 relative z-10 transition-colors duration-300 safe-area-top ${
+            isTema3
+              ? 'bg-white/70 border-slate-200/60 shadow-sm'
+              : isTema2
+                ? 'bg-violet-900/70 border-violet-700/50'
+                : 'bg-slate-800/80 border-slate-700/50'
+          }`}
+          role="banner"
         >
-          <div className="flex flex-col gap-3 max-w-7xl mx-auto">
-            {/* Top row: Perfil e Menu — botões 44px no mobile */}
-            <div className="flex items-center justify-between">
-              {/* Início + Perfil */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex flex-col gap-2 sm:gap-3 max-w-7xl mx-auto">
+            {/* Linha 1: Perfil + Ações — no mobile só ícones à direita, zoom escondido */}
+            <div className="flex items-center justify-between gap-2 min-h-[44px]">
+              {/* Esquerda: Início + Avatar + Nome (trunca no mobile) */}
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Link
                   href="/"
-                  className={`p-2 rounded-lg transition-colors flex-shrink-0 touch-target flex items-center justify-center ${
+                  className={`flex-shrink-0 p-2 rounded-lg transition-colors touch-target flex items-center justify-center ${
                     isTema3 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : isTema2 ? 'bg-violet-700/80 hover:bg-violet-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'
                   }`}
                   aria-label="Voltar ao início"
                 >
                   <Home className="w-5 h-5" />
                 </Link>
-                <img 
+                <img
                   src={settings?.avatarUrl || user?.avatar || ''}
                   alt={user?.name || ''}
-                  className="w-10 h-10 rounded-full flex-shrink-0"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex-shrink-0"
                   style={{ border: '1px solid var(--border-avatar)' }}
                 />
                 <div className="min-w-0 flex-1">
@@ -428,42 +429,40 @@ export default function UserTimelinePage({ params }: PageProps) {
                   <p className={`text-xs truncate ${isTema3 ? 'text-slate-500' : isTema2 ? 'text-violet-200' : 'text-slate-400'}`}>@{user?.username || ''}</p>
                 </div>
                 {currentUser && user && currentUser.id !== user.id && (
-                  <div className="ml-2 flex-shrink-0">
+                  <div className="flex-shrink-0 hidden sm:block">
                     <FollowButton targetUserId={user.id} />
                   </div>
                 )}
                 {currentUser && user && currentUser.id === user.id && (
                   <Link
                     href={`/u/${username}/create`}
-                    className={`ml-2 flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target min-h-[44px] sm:min-h-0 ${
+                    className={`flex-shrink-0 flex items-center justify-center rounded-lg text-sm font-medium transition-colors touch-target min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 sm:px-3 sm:py-2 sm:gap-1.5 ${
                       isTema3 ? 'btn-gradient text-white' : isTema2 ? 'btn-gradient text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
                     }`}
                   >
-                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Plus className="w-5 h-5" />
                     <span className="hidden sm:inline">Criar evento</span>
                   </Link>
                 )}
               </div>
 
-              {/* Busca global + Menu + Zoom */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Direita: Busca (mobile) + Zoom (só desktop) + Menu */}
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <GlobalSearch
                   currentUsername={username}
                   onGoToEvent={currentUser && user && currentUser.id === user.id ? handleAchievementClick : undefined}
                 />
-                <ZoomControls />
+                <div className="hidden sm:block">
+                  <ZoomControls />
+                </div>
                 <button
                   onClick={() => setDashboardOpen(!dashboardOpen)}
-                  className={`p-2 rounded-lg transition-colors touch-target flex items-center justify-center ${
+                  className={`p-2 rounded-lg transition-colors touch-target flex items-center justify-center min-w-[44px] min-h-[44px] ${
                     isTema3 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : isTema2 ? 'bg-violet-700/80 hover:bg-violet-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'
                   }`}
-                  aria-label={dashboardOpen ? "Fechar dashboard" : "Abrir dashboard"}
+                  aria-label={dashboardOpen ? 'Fechar dashboard' : 'Abrir dashboard'}
                 >
-                  {dashboardOpen ? (
-                    <X className="w-5 h-5" />
-                  ) : (
-                    <Menu className="w-5 h-5" />
-                  )}
+                  {dashboardOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 </button>
               </div>
             </div>
@@ -490,7 +489,7 @@ export default function UserTimelinePage({ params }: PageProps) {
 
             {/* Legenda */}
             <div className="flex flex-col gap-2">
-              <div className="flex gap-4 justify-center text-xs">
+              <div className="flex flex-wrap gap-2 sm:gap-4 justify-center text-xs">
                 <div className="flex items-center gap-1.5">
                   <div 
                     className="w-2.5 h-2.5 rounded-full" 
@@ -514,7 +513,7 @@ export default function UserTimelinePage({ params }: PageProps) {
                 </div>
               </div>
               {allEvents.some(e => e.endDate) && (
-                <div className="flex items-center justify-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
                   <div className="h-2 w-8 bg-slate-700/50 rounded" style={{ borderTop: '2px solid #64748b', borderBottom: '2px solid #64748b' }}></div>
                   <span className="text-slate-400">Eventos contínuos (períodos)</span>
                 </div>
