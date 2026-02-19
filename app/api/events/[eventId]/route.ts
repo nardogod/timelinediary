@@ -75,13 +75,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const deleted = await deleteEvent(eventId);
-    if (!deleted) {
-      return NextResponse.json({ error: 'Failed to delete event' }, { status: 500 });
+    try {
+      const deleted = await deleteEvent(eventId);
+      if (!deleted) {
+        console.error('deleteEvent returned false for eventId:', eventId);
+        return NextResponse.json({ error: 'Failed to delete event - event may not exist' }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
+    } catch (dbError) {
+      console.error('Database error deleting event:', dbError);
+      const errorMessage = dbError instanceof Error ? dbError.message : 'Database error';
+      return NextResponse.json({ error: `Failed to delete event: ${errorMessage}` }, { status: 500 });
     }
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting event:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

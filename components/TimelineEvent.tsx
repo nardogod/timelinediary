@@ -9,6 +9,8 @@ import EventPreview from './EventPreview';
 import { ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from './Toast';
+import { isTaskEvent } from '@/lib/utils';
 
 interface TimelineEventProps {
   event: MockEvent;
@@ -19,15 +21,22 @@ interface TimelineEventProps {
   canEdit?: boolean;
   username?: string;
   onEventDeleted?: () => void;
+  onTaskEdited?: () => void;
 }
 
-function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted }: TimelineEventProps) {
+function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted, onTaskEdited }: TimelineEventProps) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [showPreview, setShowPreview] = useState(false);
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
   const [isExpanded, setIsExpanded] = useState(false);
+  const [editingTask, setEditingTask] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDetails, setEditDetails] = useState('');
   const eventRef = useRef<HTMLDivElement>(null);
   const collapseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const isTask = isTaskEvent(event) && event.taskId;
 
   const color = useMemo(() => {
     if (settings) {
@@ -137,15 +146,143 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
 
   const handleDelete = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Excluir este evento? Esta ação não pode ser desfeita.')) return;
+    const confirmMessage = isTask 
+      ? 'Excluir esta tarefa da timeline? A tarefa será desmarcada como concluída.'
+      : 'Excluir este evento? Esta ação não pode ser desfeita.';
+    
+    if (!confirm(confirmMessage)) return;
+    
     try {
       const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Falha ao excluir');
+      if (!res.ok) {
+        let errorMessage = 'Falha ao excluir evento';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Se não conseguir parsear JSON, usa mensagem padrão baseada no status
+          if (res.status === 401) {
+            errorMessage = 'Sessão expirada. Faça login novamente.';
+          } else if (res.status === 403) {
+            errorMessage = 'Sem permissão para excluir este evento';
+          } else if (res.status === 404) {
+            errorMessage = 'Evento não encontrado';
+          } else if (res.status >= 500) {
+            errorMessage = 'Erro no servidor. Tente novamente.';
+          }
+        }
+        
+        if (res.status === 401) {
+          showToast('Sessão expirada. Faça login novamente.', 'error');
+          return;
+        }
+        
+        console.error('Failed to delete event:', res.status, errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Se é uma tarefa, desmarca como concluída
+      if (isTask && event.taskId) {
+        try {
+          await fetch('/api/tasks', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: event.taskId,
+              completed: false,
+            }),
+          });
+        } catch (err) {
+          console.warn('Failed to uncomplete task, but event was deleted');
+        }
+      }
+
+      showToast(isTask ? 'Tarefa removida da timeline!' : 'Evento excluído!', 'success');
       onEventDeleted?.();
-    } catch {
-      alert('Não foi possível excluir o evento. Tente novamente.');
+      onTaskEdited?.();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao excluir';
+      showToast(errorMessage, 'error');
     }
-  }, [event.id, onEventDeleted]);
+  }, [event.id, event.taskId, isTask, onEventDeleted, onTaskEdited, showToast]);
+
+  const handleEditTask = useCallback(async () => {
+    if (!event.taskId) {
+      showToast('Tarefa não encontrada', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/tasks/${event.taskId}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          showToast('Sessão expirada. Faça login novamente.', 'error');
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to load task');
+      }
+      
+      const task = await res.json();
+      setEditTitle(task.title);
+      setEditDetails(task.details || '');
+      setEditingTask(true);
+    } catch (error) {
+      console.error('Error loading task:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar tarefa';
+      showToast(errorMessage, 'error');
+    }
+  }, [event.taskId, showToast]);
+
+  const handleSaveTaskEdit = useCallback(async () => {
+    if (!editTitle.trim()) {
+      showToast('O título da tarefa não pode estar vazio', 'error');
+      return;
+    }
+
+    if (!event.taskId) {
+      showToast('Tarefa não encontrada', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: event.taskId,
+          title: editTitle.trim(),
+          details: editDetails.trim() || null,
+        }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          showToast('Sessão expirada. Faça login novamente.', 'error');
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to update task');
+      }
+      
+      showToast('Tarefa atualizada! A timeline será atualizada.', 'success');
+      setEditingTask(false);
+      setEditTitle('');
+      setEditDetails('');
+      onTaskEdited?.();
+    } catch (error) {
+      console.error('Error updating task:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao atualizar tarefa';
+      showToast(errorMessage, 'error');
+    }
+  }, [editTitle, editDetails, event.taskId, showToast, onTaskEdited]);
+
+  const handleCancelTaskEdit = useCallback(() => {
+    setEditingTask(false);
+    setEditTitle('');
+    setEditDetails('');
+  }, []);
 
   return (
     <>
@@ -156,8 +293,8 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
         style={{ 
           left: `${position}%`, 
           top: isTop 
-            ? `calc(50% - ${layer * 130}px)` 
-            : `calc(50% + ${layer * 130}px)`,
+            ? `calc(50% - ${layer * 180}px)` 
+            : `calc(50% + ${layer * 180}px)`,
           transform: 'translate(-50%, -50%)',
           zIndex: isExpanded ? 100 : 50 + layer
         }}
@@ -179,7 +316,7 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
         <div 
           className="absolute left-1/2 w-0.5 -translate-x-1/2 transition-all duration-300"
           style={{
-            height: '50px',
+            height: `${60 + (layer > 0 ? layer * 20 : 0)}px`,
             backgroundColor: color,
             [isTop ? 'bottom' : 'top']: '0'
           }}
@@ -191,11 +328,11 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
             className={`absolute left-1/2 -translate-x-1/2 rounded-lg text-white text-xs sm:text-sm font-medium shadow-xl transition-all duration-300 animate-fade-in ${
               isExpanded 
                 ? 'px-3 sm:px-4 py-2 sm:py-3 whitespace-normal max-w-[200px] sm:max-w-[280px] z-[100] cursor-default' 
-                : 'px-2 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap max-w-[120px] sm:max-w-none hover:scale-110 cursor-pointer hover:shadow-2xl'
+                : 'px-2 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap max-w-[140px] sm:max-w-[200px] hover:scale-110 cursor-pointer hover:shadow-2xl'
             }`}
             style={{ 
               backgroundColor: color,
-              [isTop ? 'bottom' : 'top']: '60px'
+              [isTop ? 'bottom' : 'top']: `${70 + (layer > 0 ? layer * 10 : 0)}px`
             }}
             onClick={handleCardClick}
             onKeyDown={(e) => {
@@ -224,25 +361,97 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
                 <span className="truncate max-w-[200px]">{event.link}</span>
               </button>
             )}
-            {isExpanded && canEdit && username && (
-              <div className="flex gap-2 mt-2">
-                <Link
-                  href={`/u/${username}/events/${event.id}/edit`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-[10px] sm:text-xs font-medium"
-                >
-                  <Pencil className="w-3 h-3" />
-                  Editar
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-red-600/80 hover:bg-red-600 rounded text-[10px] sm:text-xs font-medium"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Excluir
-                </button>
-              </div>
+            {isExpanded && canEdit && (
+              <>
+                {isTask && editingTask ? (
+                  <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSaveTaskEdit();
+                        }
+                        if (e.key === 'Escape') {
+                          handleCancelTaskEdit();
+                        }
+                      }}
+                      className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                      placeholder="Título da tarefa"
+                    />
+                    <textarea
+                      value={editDetails}
+                      onChange={(e) => setEditDetails(e.target.value)}
+                      rows={2}
+                      className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      placeholder="Detalhes (opcional)"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveTaskEdit}
+                        disabled={!editTitle.trim()}
+                        className="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[10px] sm:text-xs rounded transition-colors"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        onClick={handleCancelTaskEdit}
+                        className="px-2 py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-[10px] sm:text-xs rounded transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 mt-2">
+                    {isTask ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditTask();
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-[10px] sm:text-xs font-medium"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Editar Tarefa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDelete}
+                          className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-red-600/80 hover:bg-red-600 rounded text-[10px] sm:text-xs font-medium"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Excluir
+                        </button>
+                      </>
+                    ) : username ? (
+                      <>
+                        <Link
+                          href={`/u/${username}/events/${event.id}/edit`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-[10px] sm:text-xs font-medium"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Editar
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={handleDelete}
+                          className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-red-600/80 hover:bg-red-600 rounded text-[10px] sm:text-xs font-medium"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Excluir
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </>
             )}
             {!isExpanded && event.link && (
               <div className="text-[8px] sm:text-[10px] opacity-75 text-center mt-0.5">

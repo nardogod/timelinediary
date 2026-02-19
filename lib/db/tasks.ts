@@ -93,14 +93,16 @@ export async function deleteTask(taskId: string): Promise<boolean> {
   return (rows as unknown[]).length > 0;
 }
 
-/** Conta tarefas concluídas por pasta para um usuário */
+/** Conta tarefas concluídas por pasta para um usuário (apenas as que têm eventos na timeline) */
 export async function getCompletedTasksCountByFolder(userId: string): Promise<Map<string, number>> {
   const sql = getNeon();
+  // Conta apenas tarefas concluídas que têm eventos na timeline (com task_id)
   const rows = await sql`
-    SELECT folder_id, COUNT(*) as count
-    FROM tasks
-    WHERE user_id = ${userId} AND completed = true
-    GROUP BY folder_id
+    SELECT t.folder_id, COUNT(DISTINCT t.id) as count
+    FROM tasks t
+    INNER JOIN events e ON e.task_id = t.id
+    WHERE t.user_id = ${userId} AND t.completed = true
+    GROUP BY t.folder_id
   `;
   const counts = new Map<string, number>();
   for (const row of rows as Record<string, unknown>[]) {
@@ -109,13 +111,15 @@ export async function getCompletedTasksCountByFolder(userId: string): Promise<Ma
   return counts;
 }
 
-/** Conta total de tarefas concluídas para um usuário */
+/** Conta total de tarefas concluídas para um usuário (apenas as que têm eventos na timeline) */
 export async function getTotalCompletedTasksCount(userId: string): Promise<number> {
   const sql = getNeon();
+  // Conta apenas tarefas concluídas que têm eventos na timeline (com task_id)
   const rows = await sql`
-    SELECT COUNT(*) as count
-    FROM tasks
-    WHERE user_id = ${userId} AND completed = true
+    SELECT COUNT(DISTINCT t.id) as count
+    FROM tasks t
+    INNER JOIN events e ON e.task_id = t.id
+    WHERE t.user_id = ${userId} AND t.completed = true
   `;
   const row = (rows as Record<string, unknown>[])[0];
   return row ? Number(row.count) : 0;

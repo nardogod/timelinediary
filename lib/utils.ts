@@ -332,12 +332,14 @@ export function groupEventsByDate<T extends { date: string; title: string }>(
 }
 
 /**
- * Calcula posição vertical para eventos do mesmo dia, evitando sobreposição
+ * Calcula posição vertical para eventos considerando colisões horizontais
+ * Agora detecta eventos próximos horizontalmente e ajusta camadas dinamicamente
  */
 export function getEventVerticalPosition(
   event: { date: string; title: string; id?: string },
   events: { date: string; title: string; id?: string }[],
-  index: number
+  index: number,
+  positions?: Map<string, number> // Mapa de eventId -> posição horizontal (%)
 ): { placement: 'top' | 'bottom'; layer: number } {
   const dateKey = event.date.split('T')[0];
   const sameDayEvents = events.filter(e => e.date.split('T')[0] === dateKey);
@@ -358,18 +360,48 @@ export function getEventVerticalPosition(
   const regularIndex = sameDayRegular.findIndex(e => (e.id || e.title) === (event.id || event.title));
   
   // Se há tarefas agrupadas, eventos regulares começam em uma camada acima
-  // Cada grupo de tarefas ocupa uma camada, então eventos regulares começam após todas as camadas de tarefas
   const baseLayer = sameDayTasks.length > 0 ? Math.ceil(sameDayTasks.length / 2) + 1 : 0;
   
-  // Se há muitos eventos regulares no mesmo dia, usa camadas adicionais
-  // Cada camada pode ter até 2 eventos (um em top, um em bottom)
+  // Se temos posições horizontais, detecta colisões e ajusta camadas
+  if (positions && event.id) {
+    const eventPos = positions.get(event.id) ?? 0;
+    const MIN_HORIZONTAL_GAP = 10; // Distância mínima horizontal em % para evitar sobreposição
+    
+    // Encontra eventos próximos horizontalmente no mesmo dia
+    let collisionLayer = baseLayer;
+    for (const otherEvent of sameDayRegular) {
+      if (otherEvent.id === event.id) continue;
+      const otherPos = positions.get(otherEvent.id ?? '');
+      if (otherPos !== undefined) {
+        const horizontalDistance = Math.abs(eventPos - otherPos);
+        if (horizontalDistance < MIN_HORIZONTAL_GAP) {
+          // Há colisão horizontal, precisa de camada adicional
+          const neededLayers = Math.ceil((MIN_HORIZONTAL_GAP - horizontalDistance) / 3) + 1;
+          collisionLayer = Math.max(collisionLayer, baseLayer + neededLayers);
+        }
+      }
+    }
+    
+    // Se há muitos eventos regulares no mesmo dia, usa camadas adicionais
+    if (sameDayRegular.length > 2) {
+      const layer = collisionLayer + Math.floor(regularIndex / 2);
+      const placement = regularIndex % 2 === 0 ? 'top' : 'bottom';
+      return { placement, layer };
+    }
+    
+    return {
+      placement: regularIndex % 2 === 0 ? 'top' : 'bottom',
+      layer: collisionLayer
+    };
+  }
+  
+  // Fallback: comportamento original sem detecção de colisão
   if (sameDayRegular.length > 2) {
     const layer = baseLayer + Math.floor(regularIndex / 2);
     const placement = regularIndex % 2 === 0 ? 'top' : 'bottom';
     return { placement, layer };
   }
   
-  // Para poucos eventos, alterna top/bottom na camada base
   return {
     placement: regularIndex % 2 === 0 ? 'top' : 'bottom',
     layer: baseLayer

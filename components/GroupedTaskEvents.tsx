@@ -51,16 +51,22 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
 
   const handleEditTask = useCallback(async (event: MockEvent, e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
+    
     if (!event.taskId) {
+      console.error('Evento sem taskId:', event);
       showToast('Tarefa não encontrada', 'error');
       return;
     }
 
+    console.log('Iniciando edição da tarefa:', event.taskId);
+    
     try {
       // Busca a tarefa pelo ID diretamente
       const res = await fetch(`/api/tasks/${event.taskId}`);
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        console.error('Erro ao buscar tarefa:', errorData);
         if (res.status === 401) {
           showToast('Sessão expirada. Faça login novamente.', 'error');
           return;
@@ -69,6 +75,7 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
       }
       
       const task = await res.json();
+      console.log('Tarefa carregada:', task);
       setEditingTaskId(event.taskId);
       setEditTitle(task.title);
       setEditDetails(task.details || '');
@@ -142,12 +149,30 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
       // Exclui o evento da timeline
       const res = await fetch(`/api/events/${event.id}`, { method: 'DELETE' });
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        let errorMessage = 'Falha ao excluir evento';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Se não conseguir parsear JSON, usa mensagem padrão baseada no status
+          if (res.status === 401) {
+            errorMessage = 'Sessão expirada. Faça login novamente.';
+          } else if (res.status === 403) {
+            errorMessage = 'Sem permissão para excluir este evento';
+          } else if (res.status === 404) {
+            errorMessage = 'Evento não encontrado';
+          } else if (res.status >= 500) {
+            errorMessage = 'Erro no servidor. Tente novamente.';
+          }
+        }
+        
         if (res.status === 401) {
           showToast('Sessão expirada. Faça login novamente.', 'error');
           return;
         }
-        throw new Error(errorData.error || 'Falha ao excluir evento');
+        
+        console.error('Failed to delete event:', res.status, errorMessage);
+        throw new Error(errorMessage);
       }
 
       // Se o evento tem task_id, desmarca a tarefa como concluída
@@ -195,7 +220,7 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
     };
   }, [isExpanded]);
 
-  const offsetY = layer * 130; // Espaçamento maior entre camadas para evitar sobreposição
+  const offsetY = layer * 180; // Espaçamento maior entre camadas para evitar sobreposição
 
   return (
     <div
@@ -232,15 +257,24 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
       {/* Card agrupado */}
       <Tooltip content={`${events.length} tarefa${events.length > 1 ? 's' : ''} concluída${events.length > 1 ? 's' : ''}`} position={isTop ? 'top' : 'bottom'} disabled={isExpanded}>
         <div
-          onClick={handleClick}
+          onClick={(e) => {
+            // Só expande/colapsa se não estiver clicando em um botão de ação
+            const target = e.target as HTMLElement;
+            if (target.closest('button') || target.closest('input') || target.closest('textarea')) {
+              return;
+            }
+            handleClick(e);
+          }}
           className={`
             absolute left-1/2 -translate-x-1/2 min-w-[200px] sm:min-w-[240px] max-w-[280px] sm:max-w-[320px]
             bg-slate-800/95 backdrop-blur-sm border-2 rounded-lg shadow-lg
             transition-all duration-300 cursor-pointer
-            ${isTop ? 'bottom-[60px]' : 'top-[60px]'}
             ${isExpanded ? 'scale-105 shadow-2xl' : 'hover:scale-105'}
           `}
-          style={{ borderColor: color }}
+          style={{ 
+            borderColor: color,
+            [isTop ? 'bottom' : 'top']: `${70 + (layer > 0 ? layer * 10 : 0)}px`
+          }}
         >
           {/* Header do card agrupado */}
           <div className="p-3 border-b border-slate-700/50">
@@ -260,6 +294,11 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
                 <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
               )}
             </div>
+            {!isExpanded && canEdit && events.length === 1 && (
+              <div className="mt-2 text-xs text-slate-400">
+                Clique para ver e editar
+              </div>
+            )}
           </div>
 
           {/* Lista de tarefas (quando expandido) */}
@@ -338,7 +377,12 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
                         {event.taskId && canEdit && (
                           <div className="flex gap-1">
                             <button
-                              onClick={(e) => handleEditTask(event, e)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                handleEditTask(event, e);
+                              }}
                               className="flex-shrink-0 p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-700/50"
                               title="Editar tarefa"
                               aria-label="Editar tarefa"

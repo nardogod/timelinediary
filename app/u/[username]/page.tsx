@@ -72,6 +72,20 @@ export default function UserTimelinePage({ params }: PageProps) {
     const user: ApiUser = await userRes.json();
     setProfileUser(user);
 
+    // Limpa eventos de tarefas antigas sem task_id (apenas para o dono da conta)
+    if (currentUser && currentUser.id === user.id) {
+      try {
+        await fetch('/api/events/cleanup-old-task-events', { method: 'POST' });
+      } catch (error) {
+        console.warn('Failed to cleanup old task events:', error);
+      }
+    }
+
+    // Aguarda um pouco após a limpeza para garantir que os dados estejam atualizados
+    if (currentUser && currentUser.id === user.id) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
     const [eventsRes, foldersRes, tasksStatsRes] = await Promise.all([
       fetch(`/api/events?userId=${user.id}`),
       fetch(`/api/folders?userId=${user.id}`),

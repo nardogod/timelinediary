@@ -125,9 +125,15 @@ export async function updateEvent(
 }
 
 export async function deleteEvent(eventId: string): Promise<boolean> {
-  const sql = getNeon();
-  const rows = await sql`DELETE FROM events WHERE id = ${eventId} RETURNING id`;
-  return (rows as unknown[]).length > 0;
+  try {
+    const sql = getNeon();
+    const rows = await sql`DELETE FROM events WHERE id = ${eventId} RETURNING id`;
+    const result = rows as Array<{ id: string }>;
+    return result.length > 0;
+  } catch (error) {
+    console.error('Error in deleteEvent:', error);
+    throw error;
+  }
 }
 
 /** Busca eventos do usuário por título (case-insensitive, parcial). */

@@ -65,13 +65,17 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
     const regular: MockEvent[] = [];
     
     for (const [date, { regular: regularEvts, tasks }] of groups.entries()) {
-      // Se há tarefas no mesmo dia, agrupa elas
-      if (tasks.length > 0) {
-        grouped.push({ date, events: tasks });
+      // Se há tarefas no mesmo dia, agrupa apenas as que têm task_id (podem ser editadas)
+      const tasksWithTaskId = tasks.filter(t => t.taskId);
+      if (tasksWithTaskId.length > 0) {
+        grouped.push({ date, events: tasksWithTaskId });
       }
-      // Eventos regulares são adicionados normalmente
-      regular.push(...regularEvts);
+      // Eventos regulares são adicionados normalmente, ordenados por data
+      regular.push(...regularEvts.sort((a, b) => a.date.localeCompare(b.date)));
     }
+    
+    // Ordena eventos regulares por data para garantir ordem correta
+    regular.sort((a, b) => a.date.localeCompare(b.date));
     
     return {
       markers: getTimelineMarkers(events, defaultMonth),
@@ -95,7 +99,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
     }> = [];
 
     const lastPosPerLayer: number[] = [];
-    const MIN_GAP_PERCENT = 8; // distância mínima entre cards na mesma camada (aumentado para evitar sobreposição)
+    const MIN_GAP_PERCENT = 10; // distância mínima entre cards na mesma camada (aumentado para evitar sobreposição)
 
     const byDate = [...groupedEvents].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -214,7 +218,10 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
       // Só previne scroll padrão se o movimento for principalmente horizontal
       // Isso permite scroll vertical normal quando necessário
       if (deltaX > deltaY && deltaX > 5) {
-        e.preventDefault();
+        // Usa requestAnimationFrame para evitar erro de passive listener
+        if (e.cancelable) {
+          e.preventDefault();
+        }
         e.stopPropagation();
         isPanningRef.current = true;
         setPan(touch.clientX - dragStart);
@@ -237,7 +244,8 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
       style={{ 
         WebkitOverflowScrolling: 'touch',
         overscrollBehavior: 'contain',
-        scrollBehavior: 'smooth'
+        scrollBehavior: 'smooth',
+        touchAction: 'pan-y pinch-zoom'
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -458,29 +466,26 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
             })}
 
             {/* Eventos regulares (não agrupados) */}
-            {regularEvents.map((event) => {
+            {regularEvents.map((event, index) => {
               const pos = calculateEventPosition(event.date, events, defaultMonth);
-              const eventIndex = sortedEvents.findIndex(e => e.id === event.id);
-              const verticalPos = getEventVerticalPosition(event, sortedEvents, eventIndex);
               
-              // Verifica se há eventos agrupados de tarefas no mesmo dia
-          // Calcula offset de camada considerando grupos de tarefas no mesmo dia
-          const sameDayGroup = groupedEvents.find(g => g.date === event.date.split('T')[0]);
-          // Se há grupo de tarefas no mesmo dia, eventos regulares começam após todas as camadas de tarefas
-          const taskLayers = sameDayGroup ? Math.ceil(sameDayGroup.events.length / 2) + 1 : 0;
-          const layerOffset = verticalPos.layer + taskLayers;
+              // Lógica simples: alterna acima/abaixo da linha por ordem de data
+              // Índice par = acima (top), índice ímpar = abaixo (bottom)
+              const placement: 'top' | 'bottom' = index % 2 === 0 ? 'top' : 'bottom';
+              const layer = 0; // Sempre na primeira camada, apenas alterna acima/abaixo
               
               return (
                 <TimelineEvent
                   key={event.id}
                   event={event}
                   position={pos}
-                  placement={verticalPos.placement}
-                  layer={layerOffset}
+                  placement={placement}
+                  layer={layer}
                   settings={settings}
                   canEdit={canEdit}
                   username={username}
                   onEventDeleted={onEventDeleted}
+                  onTaskEdited={onTaskEdited}
                 />
               );
             })}

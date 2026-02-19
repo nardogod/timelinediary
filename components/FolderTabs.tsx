@@ -20,12 +20,15 @@ function FolderTabs({ folders, events, selectedFolder, onSelectFolder, onOpenNot
   const eventCounts = useMemo(() => {
     const counts = new Map<string | null, number>();
     
-    // Total: eventos + tarefas concluídas
-    const regularEventsCount = events.length;
+    // Total: eventos regulares (sem tarefas) + tarefas concluídas
+    // Eventos de tarefas têm taskId e são contados separadamente
+    const regularEventsCount = events.filter(e => !e.taskId).length;
     counts.set(null, regularEventsCount + totalCompletedTasks);
     
     folders.forEach(folder => {
-      const folderEventsCount = events.filter(e => e.folder === folder.name).length;
+      // Conta apenas eventos regulares (não tarefas concluídas, que são contadas separadamente)
+      // Eventos de tarefas têm taskId e são contados via completedTasksCount
+      const folderEventsCount = events.filter(e => e.folder === folder.name && !e.taskId).length;
       const folderTasksCount = completedTasksCount.get(folder.id) || 0;
       counts.set(folder.name, folderEventsCount + folderTasksCount);
     });
