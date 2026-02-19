@@ -84,9 +84,15 @@ for (let i = 0; i < statements.length; i++) {
     ok++;
     console.log(`  [${i + 1}/${statements.length}] OK: ${preview}...`);
   } catch (err) {
-    console.error(`  [${i + 1}/${statements.length}] ERRO: ${preview}...`);
-    console.error('  Mensagem:', err.message);
-    process.exit(1);
+    // Ignora erro se o trigger ou coluna já existe
+    if (err.message?.includes('already exists') || err.message?.includes('duplicate')) {
+      console.log(`  [${i + 1}/${statements.length}] JÁ EXISTE: ${preview}...`);
+      ok++;
+    } else {
+      console.error(`  [${i + 1}/${statements.length}] ERRO: ${preview}...`);
+      console.error('  Mensagem:', err.message);
+      process.exit(1);
+    }
   }
 }
 console.log(`\nMigration 004 concluída: ${ok} statements executados.`);
