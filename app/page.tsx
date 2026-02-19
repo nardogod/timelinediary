@@ -13,40 +13,51 @@ type PublicUser = { id: string; username: string; name: string; avatar: string |
 export default function Home() {
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
-  const [users, setUsers] = useState<PublicUser[]>([]);
-  const [followedUserIds, setFollowedUserIds] = useState<string[]>([]);
+  const [featuredUsers, setFeaturedUsers] = useState<PublicUser[]>([]);
   const [followedUsers, setFollowedUsers] = useState<PublicUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PublicUser[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
+  // Não logado: só usuários em destaque (Leo1, teste@teste)
   useEffect(() => {
     fetch('/api/users')
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setUsers(Array.isArray(data) ? data : []))
-      .catch(() => setUsers([]));
+      .then((data) => setFeaturedUsers(Array.isArray(data) ? data : []))
+      .catch(() => setFeaturedUsers([]));
   }, []);
 
+  // Logado: carregar dados apenas dos usuários que você segue (por ids)
   useEffect(() => {
-    if (user && users.length > 0) {
-      const followed = getFollowedUsers(user.id);
-      setFollowedUserIds(followed);
-      setFollowedUsers(users.filter((u) => followed.includes(u.id)));
+    if (!user) return;
+    const ids = getFollowedUsers(user.id);
+    if (ids.length === 0) {
+      setFollowedUsers([]);
+      return;
     }
-  }, [user, users]);
+    fetch(`/api/users?ids=${ids.join(',')}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setFollowedUsers(Array.isArray(data) ? data : []))
+      .catch(() => setFollowedUsers([]));
+  }, [user?.id]);
 
+  // Busca por nome ou @username via API (outros usuários não ficam em lista)
   useEffect(() => {
-    if (searchQuery.trim() === '' || users.length === 0) {
+    if (searchQuery.trim() === '') {
       setSearchResults([]);
       return;
     }
-    const query = searchQuery.toLowerCase();
-    const results = users.filter((u) => {
-      const nameMatch = u.name.toLowerCase().includes(query);
-      const usernameMatch = u.username.toLowerCase().includes(query);
-      return (nameMatch || usernameMatch) && u.id !== user?.id;
-    });
-    setSearchResults(results);
-  }, [searchQuery, user, users]);
+    setSearchLoading(true);
+    fetch(`/api/search?q=${encodeURIComponent(searchQuery.trim())}`)
+      .then((res) => (res.ok ? res.json() : { users: [] }))
+      .then((data) => {
+        const list = Array.isArray(data?.users) ? data.users : [];
+        const filtered = user ? (list as PublicUser[]).filter((u) => u.id !== user.id) : (list as PublicUser[]);
+        setSearchResults(filtered);
+      })
+      .catch(() => setSearchResults([]))
+      .finally(() => setSearchLoading(false));
+  }, [searchQuery, user?.id]);
 
   if (isLoading) {
     return (
@@ -78,7 +89,7 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
-            {users.map((u, index) => (
+            {featuredUsers.map((u, index) => (
               <Link
                 key={u.id}
                 href={`/u/${u.username}`}
@@ -233,9 +244,15 @@ export default function Home() {
                       <FollowButton 
                         targetUserId={followedUser.id}
                         onFollowChange={() => {
-                          const followed = getFollowedUsers(user.id);
-                          setFollowedUserIds(followed);
-                          setFollowedUsers(users.filter((u) => followed.includes(u.id)));
+                          const ids = getFollowedUsers(user.id);
+                          if (ids.length === 0) {
+                            setFollowedUsers([]);
+                            return;
+                          }
+                          fetch(`/api/users?ids=${ids.join(',')}`)
+                            .then((res) => (res.ok ? res.json() : []))
+                            .then((data) => setFollowedUsers(Array.isArray(data) ? data : []))
+                            .catch(() => setFollowedUsers([]));
                         }}
                       />
                     </div>
@@ -246,7 +263,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Barra de pesquisa */}
+        {/* Barra de pesquisa — outros usuários só aparecem ao buscar por nome ou @usuário */}
         <div className="mt-10">
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary" />
@@ -254,16 +271,23 @@ export default function Home() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por nome ou username..."
+              placeholder="Buscar por nome completo ou @usuário..."
               className="w-full pl-12 pr-4 py-3.5 glass rounded-xl text-primary placeholder-tertiary focus:outline-none focus:ring-2 transition-all duration-200"
               style={{ '--tw-ring-color': 'var(--color-primary-500)' } as React.CSSProperties}
             />
           </div>
+          <p className="text-secondary text-sm mb-3">
+            Digite o nome completo ou o @ do usuário para encontrar perfis.
+          </p>
 
           {/* Resultados da pesquisa */}
           {searchQuery.trim() !== '' && (
             <div>
-              {searchResults.length === 0 ? (
+              {searchLoading ? (
+                <div className="glass rounded-2xl p-6 text-center">
+                  <p className="text-secondary">Buscando...</p>
+                </div>
+              ) : searchResults.length === 0 ? (
                 <div className="glass rounded-2xl p-6 text-center">
                   <p className="text-secondary">Nenhum perfil encontrado</p>
                 </div>
@@ -296,9 +320,15 @@ export default function Home() {
                         <FollowButton 
                           targetUserId={userResult.id}
                           onFollowChange={() => {
-                            const followed = getFollowedUsers(user.id);
-                            setFollowedUserIds(followed);
-                            setFollowedUsers(users.filter((u) => followed.includes(u.id)));
+                            const ids = getFollowedUsers(user.id);
+                            if (ids.length === 0) {
+                              setFollowedUsers([]);
+                              return;
+                            }
+                            fetch(`/api/users?ids=${ids.join(',')}`)
+                              .then((res) => (res.ok ? res.json() : []))
+                              .then((data) => setFollowedUsers(Array.isArray(data) ? data : []))
+                              .catch(() => setFollowedUsers([]));
                           }}
                         />
                       </div>

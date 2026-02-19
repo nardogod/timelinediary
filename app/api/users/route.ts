@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { getAllUsers, updateUser } from '@/lib/db/users';
+import { getFeaturedUsers, getUsersByIds, updateUser } from '@/lib/db/users';
 import { hash } from 'bcryptjs';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!process.env.DATABASE_URL) {
     return NextResponse.json(
       {
@@ -14,7 +14,17 @@ export async function GET() {
     );
   }
   try {
-    const users = await getAllUsers();
+    const searchParams = request.nextUrl.searchParams;
+    const featured = searchParams.get('featured') === 'true';
+    const idsParam = searchParams.get('ids');
+    const ids = idsParam ? idsParam.split(',').map((id) => id.trim()).filter(Boolean) : [];
+
+    if (ids.length > 0) {
+      const users = await getUsersByIds(ids);
+      return NextResponse.json(users);
+    }
+    // Padrão e featured=true: só usuários em destaque (Leo1, teste@teste)
+    const users = await getFeaturedUsers();
     return NextResponse.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);

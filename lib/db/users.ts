@@ -56,10 +56,45 @@ export async function getAllUsers(): Promise<Pick<User, 'id' | 'username' | 'nam
   }));
 }
 
-/** Busca usuários por nome ou username (case-insensitive, parcial). */
+/** Usuários em destaque na página inicial (apenas Leo1 e teste@teste). */
+export async function getFeaturedUsers(): Promise<Pick<User, 'id' | 'username' | 'name' | 'avatar'>[]> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT id, username, name, avatar FROM users
+    WHERE LOWER(TRIM(username)) = ${'leo1'} OR LOWER(TRIM(username)) = ${'teste@teste'}
+    ORDER BY username
+  `;
+  return (rows as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    username: String(row.username),
+    name: String(row.name),
+    avatar: row.avatar != null ? String(row.avatar) : null,
+  }));
+}
+
+/** Retorna usuários pelos ids (para lista "quem você segue"). */
+export async function getUsersByIds(ids: string[]): Promise<Pick<User, 'id' | 'username' | 'name' | 'avatar'>[]> {
+  if (ids.length === 0) return [];
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT id, username, name, avatar FROM users
+    WHERE id = ANY(${ids})
+  `;
+  const order = new Map(ids.map((id, i) => [id, i]));
+  return (rows as Record<string, unknown>[])
+    .map((row) => ({
+      id: String(row.id),
+      username: String(row.username),
+      name: String(row.name),
+      avatar: row.avatar != null ? String(row.avatar) : null,
+    }))
+    .sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+}
+
+/** Busca usuários por nome ou username (case-insensitive, parcial). Query vazia retorna []. */
 export async function searchUsers(query: string): Promise<Pick<User, 'id' | 'username' | 'name' | 'avatar'>[]> {
   if (!query || query.trim().length === 0) {
-    return getAllUsers();
+    return [];
   }
   const sql = getNeon();
   const pattern = `%${query.trim().toLowerCase()}%`;
