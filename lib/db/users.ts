@@ -56,12 +56,14 @@ export async function getAllUsers(): Promise<Pick<User, 'id' | 'username' | 'nam
   }));
 }
 
-/** Usuários em destaque na página inicial (apenas Leo1 e teste@teste). */
+/** Usuários em destaque na página inicial (Leo1, teste@teste, Loid). */
 export async function getFeaturedUsers(): Promise<Pick<User, 'id' | 'username' | 'name' | 'avatar'>[]> {
   const sql = getNeon();
   const rows = await sql`
     SELECT id, username, name, avatar FROM users
-    WHERE LOWER(TRIM(username)) = ${'leo1'} OR LOWER(TRIM(username)) = ${'teste@teste'}
+    WHERE LOWER(TRIM(username)) = ${'leo1'}
+       OR LOWER(TRIM(username)) = ${'teste@teste'}
+       OR LOWER(TRIM(username)) = ${'loid'}
     ORDER BY username
   `;
   return (rows as Record<string, unknown>[]).map((row) => ({
