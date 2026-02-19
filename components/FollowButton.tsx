@@ -1,21 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { followUser, unfollowUser, isFollowing } from '@/lib/auth';
 import { UserPlus, UserCheck } from 'lucide-react';
 
 interface FollowButtonProps {
   targetUserId: string;
+  initialFollowing?: boolean;
   onFollowChange?: () => void;
 }
 
-export default function FollowButton({ targetUserId, onFollowChange }: FollowButtonProps) {
+export default function FollowButton({ targetUserId, initialFollowing, onFollowChange }: FollowButtonProps) {
   const { user } = useAuth();
   const [following, setFollowing] = useState(
-    user ? isFollowing(user.id, targetUserId) : false
+    initialFollowing ?? (user ? isFollowing(user.id, targetUserId) : false)
   );
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && initialFollowing !== undefined) setFollowing(initialFollowing);
+  }, [user?.id, targetUserId, initialFollowing]);
 
   if (!user || user.id === targetUserId) {
     return null; // Não mostra botão se não estiver logado ou se for o próprio perfil
@@ -23,19 +28,22 @@ export default function FollowButton({ targetUserId, onFollowChange }: FollowBut
 
   const handleToggleFollow = async () => {
     if (!user) return;
-    
     setIsLoading(true);
-    
-    if (following) {
-      unfollowUser(user.id, targetUserId);
-      setFollowing(false);
-    } else {
-      followUser(user.id, targetUserId);
-      setFollowing(true);
+    const wasFollowing = following;
+    try {
+      if (following) {
+        await unfollowUser(user.id, targetUserId);
+        setFollowing(false);
+      } else {
+        await followUser(user.id, targetUserId);
+        setFollowing(true);
+      }
+      onFollowChange?.();
+    } catch {
+      setFollowing(wasFollowing);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
-    onFollowChange?.();
   };
 
   return (

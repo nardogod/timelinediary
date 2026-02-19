@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { getFollowedUsers } from '@/lib/auth';
 import FollowButton from '@/components/FollowButton';
 import { LogOut, User, Search } from 'lucide-react';
 
@@ -27,17 +26,21 @@ export default function Home() {
       .catch(() => setFeaturedUsers([]));
   }, []);
 
-  // Logado: carregar dados apenas dos usuários que você segue (por ids)
+  // Logado: carregar da API os usuários que você segue (persistido no banco)
   useEffect(() => {
     if (!user) return;
-    const ids = getFollowedUsers(user.id);
-    if (ids.length === 0) {
-      setFollowedUsers([]);
-      return;
-    }
-    fetch(`/api/users?ids=${ids.join(',')}`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setFollowedUsers(Array.isArray(data) ? data : []))
+    fetch('/api/follows')
+      .then((res) => (res.ok ? res.json() : { followedIds: [] }))
+      .then((data) => {
+        const ids = Array.isArray(data?.followedIds) ? data.followedIds : [];
+        if (ids.length === 0) {
+          setFollowedUsers([]);
+          return;
+        }
+        return fetch(`/api/users?ids=${ids.join(',')}`)
+          .then((r) => (r.ok ? r.json() : []))
+          .then((list) => setFollowedUsers(Array.isArray(list) ? list : []));
+      })
       .catch(() => setFollowedUsers([]));
   }, [user?.id]);
 
@@ -243,15 +246,20 @@ export default function Home() {
                     <div onClick={(e) => e.preventDefault()}>
                       <FollowButton 
                         targetUserId={followedUser.id}
+                        initialFollowing={true}
                         onFollowChange={() => {
-                          const ids = getFollowedUsers(user.id);
-                          if (ids.length === 0) {
-                            setFollowedUsers([]);
-                            return;
-                          }
-                          fetch(`/api/users?ids=${ids.join(',')}`)
-                            .then((res) => (res.ok ? res.json() : []))
-                            .then((data) => setFollowedUsers(Array.isArray(data) ? data : []))
+                          fetch('/api/follows')
+                            .then((res) => (res.ok ? res.json() : { followedIds: [] }))
+                            .then((data) => {
+                              const ids = Array.isArray(data?.followedIds) ? data.followedIds : [];
+                              if (ids.length === 0) {
+                                setFollowedUsers([]);
+                                return;
+                              }
+                              return fetch(`/api/users?ids=${ids.join(',')}`)
+                                .then((r) => (r.ok ? r.json() : []))
+                                .then((list) => setFollowedUsers(Array.isArray(list) ? list : []));
+                            })
                             .catch(() => setFollowedUsers([]));
                         }}
                       />
@@ -320,14 +328,18 @@ export default function Home() {
                         <FollowButton 
                           targetUserId={userResult.id}
                           onFollowChange={() => {
-                            const ids = getFollowedUsers(user.id);
-                            if (ids.length === 0) {
-                              setFollowedUsers([]);
-                              return;
-                            }
-                            fetch(`/api/users?ids=${ids.join(',')}`)
-                              .then((res) => (res.ok ? res.json() : []))
-                              .then((data) => setFollowedUsers(Array.isArray(data) ? data : []))
+                            fetch('/api/follows')
+                              .then((res) => (res.ok ? res.json() : { followedIds: [] }))
+                              .then((data) => {
+                                const ids = Array.isArray(data?.followedIds) ? data.followedIds : [];
+                                if (ids.length === 0) {
+                                  setFollowedUsers([]);
+                                  return;
+                                }
+                                return fetch(`/api/users?ids=${ids.join(',')}`)
+                                  .then((r) => (r.ok ? r.json() : []))
+                                  .then((list) => setFollowedUsers(Array.isArray(list) ? list : []));
+                              })
                               .catch(() => setFollowedUsers([]));
                           }}
                         />

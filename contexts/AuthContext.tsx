@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthUser, loginClient, registerClient, logoutClient, getCurrentUserClient } from '@/lib/auth';
+import { AuthUser, loginClient, registerClient, logoutClient, getCurrentUserClient, syncFollowsFromServer } from '@/lib/auth';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -35,6 +35,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const currentUser = await getCurrentUserClient();
         setUser(currentUser);
+        if (currentUser) await syncFollowsFromServer(currentUser.id);
       } catch (error) {
         console.error('Error checking session:', error);
         setUser(null);
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const loggedUser = await loginClient(email, password);
       if (loggedUser) {
         setUser(loggedUser);
+        await syncFollowsFromServer(loggedUser.id);
         return true;
       }
       return false;
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const newUser = await registerClient(email, password, username, name);
       if (newUser) {
         setUser(newUser);
+        await syncFollowsFromServer(newUser.id);
         return true;
       }
       return false;

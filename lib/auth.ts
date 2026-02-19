@@ -86,8 +86,40 @@ export async function logoutClient(): Promise<void> {
 
 const getFollowsKey = (userId: string): string => `timeline_follows_${userId}`;
 
-export function followUser(userId: string, targetUserId: string): void {
+/** Sincroniza a lista de seguidos do servidor para o localStorage. Se o servidor estiver vazio e o localStorage tiver follows, envia para o servidor (migração única). */
+export async function syncFollowsFromServer(userId: string): Promise<void> {
   if (typeof window === 'undefined') return;
+  try {
+    const res = await fetch('/api/follows');
+    const data = await res.json().catch(() => ({}));
+    let serverIds = Array.isArray(data?.followedIds) ? data.followedIds : [];
+    const localIds = getFollows(userId);
+    if (serverIds.length === 0 && localIds.length > 0) {
+      for (const targetId of localIds) {
+        await fetch('/api/follows', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetUserId: targetId }),
+        });
+      }
+      const res2 = await fetch('/api/follows');
+      const data2 = await res2.json().catch(() => ({}));
+      serverIds = Array.isArray(data2?.followedIds) ? data2.followedIds : [];
+    }
+    localStorage.setItem(getFollowsKey(userId), JSON.stringify(serverIds));
+  } catch {
+    // mantém localStorage atual em caso de erro
+  }
+}
+
+export async function followUser(userId: string, targetUserId: string): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const res = await fetch('/api/follows', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetUserId }),
+  });
+  if (!res.ok) throw new Error('Erro ao seguir');
   const follows = getFollows(userId);
   if (!follows.includes(targetUserId)) {
     follows.push(targetUserId);
@@ -95,8 +127,10 @@ export function followUser(userId: string, targetUserId: string): void {
   }
 }
 
-export function unfollowUser(userId: string, targetUserId: string): void {
+export async function unfollowUser(userId: string, targetUserId: string): Promise<void> {
   if (typeof window === 'undefined') return;
+  const res = await fetch(`/api/follows?targetUserId=${encodeURIComponent(targetUserId)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Erro ao deixar de seguir');
   const follows = getFollows(userId);
   const index = follows.indexOf(targetUserId);
   if (index > -1) {
