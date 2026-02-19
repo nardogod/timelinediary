@@ -8,6 +8,7 @@ import {
 } from '@/lib/db/telegram';
 import { getBotState, setBotState, clearBotState, type BotStep, type BotStatePayload } from '@/lib/db/telegram-state';
 import { getEventsByUserId, createEvent } from '@/lib/db/events';
+import { getFoldersByUserId } from '@/lib/db/folders';
 import { parseDate } from '@/lib/telegram-parser';
 import { validateEvent, sanitizeTitle, sanitizeLink, validateLink } from '@/lib/validators';
 
@@ -398,11 +399,96 @@ export async function POST(request: NextRequest) {
           await bot.api.sendMessage(chatId, validation.errors.join('\n'));
           return NextResponse.json({ ok: true });
         }
-        await setBotState(telegramId, 'ask_has_link', {
+        // Verifica se o usuário tem pastas; se não tiver, pula direto para o link
+        const folders = await getFoldersByUserId(userId);
+        if (!folders || folders.length === 0) {
+          await setBotState(telegramId, 'ask_has_link', {
+            title: state.payload.title,
+            date: state.payload.date,
+            end_date: state.payload.end_date,
+            type: level,
+          });
+          await bot.api.sendMessage(
+            chatId,
+            'Quer adicionar um link ao evento? (Ex: site do evento, material)',
+            { reply_markup: KEYBOARD_SIM_NAO }
+          );
+          return NextResponse.json({ ok: true });
+        }
+
+        await setBotState(telegramId, 'ask_folder', {
           title: state.payload.title,
           date: state.payload.date,
           end_date: state.payload.end_date,
           type: level,
+        });
+
+        const quickFolders = folders.slice(0, 3);
+        const keyboard = {
+          keyboard: [
+            ...quickFolders.map((f) => [{ text: f.name }]),
+            [{ text: 'Pular pasta' }],
+          ],
+          one_time_keyboard: true,
+          resize_keyboard: true,
+        };
+        await bot.api.sendMessage(
+          chatId,
+          'Quer colocar este evento em alguma pasta?\n\nExemplos: Trabalho, Pessoal, Estudos.\n\nToque em uma pasta abaixo ou em \"Pular pasta\".',
+          { reply_markup: keyboard }
+        );
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_folder') {
+        const folders = await getFoldersByUserId(userId);
+        const skip =
+          lower === 'pular' ||
+          lower === 'pular pasta' ||
+          lower === 'nenhuma' ||
+          isNao(lower);
+
+        let folderName: string | undefined;
+
+        if (!skip) {
+          const match = folders.find(
+            (f) => f.name.toLowerCase() === trimmed.toLowerCase()
+          );
+          if (!match) {
+            if (!folders || folders.length === 0) {
+              await bot.api.sendMessage(chatId, 'Você ainda não tem pastas criadas no site. Vou seguir sem pasta.');
+            } else {
+              const list = folders.map((f) => `• ${f.name}`).join('\n');
+              await bot.api.sendMessage(
+                chatId,
+                'Não encontrei essa pasta.\n\nPastas disponíveis:\n' +
+                  list +
+                  '\n\nToque em uma das opções ou em \"Pular pasta\".'
+              );
+              const keyboard = {
+                keyboard: [
+                  ...folders.slice(0, 3).map((f) => [{ text: f.name }]),
+                  [{ text: 'Pular pasta' }],
+                ],
+                one_time_keyboard: true,
+                resize_keyboard: true,
+              };
+              await bot.api.sendMessage(chatId, 'Escolha uma pasta ou pule:', {
+                reply_markup: keyboard,
+              });
+              return NextResponse.json({ ok: true });
+            }
+          } else {
+            folderName = match.name;
+          }
+        }
+
+        await setBotState(telegramId, 'ask_has_link', {
+          title: state.payload.title,
+          date: state.payload.date,
+          end_date: state.payload.end_date,
+          type: state.payload.type,
+          folder_name: folderName,
         });
         await bot.api.sendMessage(
           chatId,
@@ -424,6 +510,12 @@ export async function POST(request: NextRequest) {
             reply_markup: KEYBOARD_PULAR,
           });
         } else if (isNao(lower)) {
+          let folderId: string | null = null;
+          if (state.payload.folder_name) {
+            const folders = await getFoldersByUserId(userId);
+            const folder = folders.find((f) => f.name === state.payload.folder_name);
+            if (folder) folderId = folder.id;
+          }
           const newEvent = await createEvent({
             user_id: userId,
             title: state.payload.title!,
@@ -431,7 +523,7 @@ export async function POST(request: NextRequest) {
             end_date: state.payload.end_date ?? null,
             type: state.payload.type!,
             link: null,
-            folder_id: null,
+            folder_id: folderId,
           });
           await clearBotState(telegramId);
           if (newEvent) {
@@ -452,6 +544,12 @@ export async function POST(request: NextRequest) {
 
       if (state.step === 'ask_link') {
         if (isNao(lower) || lower === 'pular' || lower === 'skip') {
+          let folderId: string | null = null;
+          if (state.payload.folder_name) {
+            const folders = await getFoldersByUserId(userId);
+            const folder = folders.find((f) => f.name === state.payload.folder_name);
+            if (folder) folderId = folder.id;
+          }
           const newEvent = await createEvent({
             user_id: userId,
             title: state.payload.title!,
@@ -459,7 +557,7 @@ export async function POST(request: NextRequest) {
             end_date: state.payload.end_date ?? null,
             type: state.payload.type!,
             link: null,
-            folder_id: null,
+            folder_id: folderId,
           });
           await clearBotState(telegramId);
           if (newEvent) {
@@ -486,6 +584,12 @@ export async function POST(request: NextRequest) {
           await bot.api.sendMessage(chatId, linkValidation.errors.join('\n'));
           return NextResponse.json({ ok: true });
         }
+        let folderId: string | null = null;
+        if (state.payload.folder_name) {
+          const folders = await getFoldersByUserId(userId);
+          const folder = folders.find((f) => f.name === state.payload.folder_name);
+          if (folder) folderId = folder.id;
+        }
         const newEvent = await createEvent({
           user_id: userId,
           title: state.payload.title!,
@@ -493,7 +597,7 @@ export async function POST(request: NextRequest) {
           end_date: state.payload.end_date ?? null,
           type: state.payload.type!,
           link,
-          folder_id: null,
+          folder_id: folderId,
         });
         await clearBotState(telegramId);
         if (newEvent) {

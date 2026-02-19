@@ -6,6 +6,7 @@ export type BotStep =
   | 'ask_has_end'
   | 'ask_end_date'
   | 'ask_level'
+  | 'ask_folder'
   | 'ask_has_link'
   | 'ask_link';
 
@@ -15,6 +16,7 @@ export interface BotStatePayload {
   end_date?: string;
   type?: 'simple' | 'medium' | 'important';
   link?: string;
+  folder_name?: string;
 }
 
 export interface BotState {
@@ -35,6 +37,7 @@ function rowToState(row: Record<string, unknown>): BotState {
       end_date: payload?.end_date != null ? String(payload.end_date) : undefined,
       type: payload?.type != null ? (payload.type as 'simple' | 'medium' | 'important') : undefined,
       link: payload?.link != null ? String(payload.link) : undefined,
+      folder_name: payload?.folder_name != null ? String(payload.folder_name) : undefined,
     },
     updated_at: String(row.updated_at),
   };

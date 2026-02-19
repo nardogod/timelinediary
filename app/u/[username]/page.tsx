@@ -5,6 +5,7 @@ import { MockEvent } from '@/lib/mockData';
 import Timeline from '@/components/Timeline';
 import ZoomControls from '@/components/ZoomControls';
 import TimelineWrapper from '@/components/TimelineWrapper';
+import MobileZoomSlider from '@/components/MobileZoomSlider';
 import MonthFilter from '@/components/MonthFilter';
 import Dashboard from '@/components/Dashboard';
 import FolderTabs from '@/components/FolderTabs';
@@ -23,6 +24,7 @@ import { getAchievementsByUserId, loadAchievementsFromStorage } from '@/lib/achi
 import { getSettingsByUserId, loadSettingsFromStorage, DEFAULT_SETTINGS } from '@/lib/settings';
 import { useSwipe } from '@/hooks/useSwipe';
 import { useKeyboard } from '@/hooks/useKeyboard';
+import { trackEvent } from '@/lib/analytics';
 
 type ApiUser = { id: string; username: string; name: string; avatar: string | null };
 type ApiEvent = { id: string; user_id: string; title: string; date: string; end_date: string | null; type: string; link: string | null; folder_id: string | null };
@@ -141,6 +143,27 @@ export default function UserTimelinePage({ params }: PageProps) {
     }
   }, [username, loadUserData]);
 
+  // Analytics: visualização de perfil/timeline
+  useEffect(() => {
+    if (!profileUser) return;
+    const isOwner = currentUser && profileUser && currentUser.id === profileUser.id;
+    trackEvent('profile_view', {
+      profileUserId: profileUser.id,
+      profileUsername: profileUser.username,
+      viewerUserId: currentUser?.id ?? null,
+      isOwner,
+    });
+    trackEvent('timeline_view', {
+      profileUserId: profileUser.id,
+      profileUsername: profileUser.username,
+      viewerUserId: currentUser?.id ?? null,
+      isOwner,
+      eventsCount: allEvents.length,
+      hasFolders: folders.length > 0,
+      hasLinks: allEvents.some((e) => !!e.link),
+    });
+  }, [profileUser, currentUser?.id, allEvents.length, folders.length]);
+
   // Recarrega dados quando a página recebe foco (útil quando volta da criação de evento)
   useEffect(() => {
     const handleFocus = () => {
@@ -177,6 +200,20 @@ export default function UserTimelinePage({ params }: PageProps) {
     
     return filtered;
   }, [filterActive, selectedYear, selectedMonth, selectedFolder, allEvents]);
+
+  // Analytics: visualização de pasta específica
+  useEffect(() => {
+    if (!profileUser) return;
+    if (!selectedFolder) return;
+    trackEvent('folder_view', {
+      profileUserId: profileUser.id,
+      profileUsername: profileUser.username,
+      viewerUserId: currentUser?.id ?? null,
+      folderName: selectedFolder,
+      year: selectedYear,
+      month: selectedMonth + 1,
+    });
+  }, [selectedFolder, profileUser, currentUser?.id, selectedYear, selectedMonth]);
 
   // Memoiza eventos do mês para evitar recálculo
   const monthEvents = useMemo(() => {
@@ -467,16 +504,6 @@ export default function UserTimelinePage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Tabs de Pastas */}
-            {folders.length > 0 && (
-              <FolderTabs
-                folders={folders}
-                events={allEvents}
-                selectedFolder={selectedFolder}
-                onSelectFolder={setSelectedFolder}
-              />
-            )}
-
             {/* Filtro de Mês */}
             <MonthFilter
               year={selectedYear}
@@ -486,6 +513,17 @@ export default function UserTimelinePage({ params }: PageProps) {
               onReset={handleResetFilters}
               hasEvents={monthEvents.length > 0}
             />
+
+            {/* Tabs de Pastas - logo abaixo do filtro de mês */}
+            {folders.length > 0 && (
+              <FolderTabs
+                key={foldersKey}
+                folders={folders}
+                events={allEvents}
+                selectedFolder={selectedFolder}
+                onSelectFolder={setSelectedFolder}
+              />
+            )}
 
             {/* Legenda */}
             <div className="flex flex-col gap-2">
@@ -536,6 +574,8 @@ export default function UserTimelinePage({ params }: PageProps) {
           className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-[100]"
           {...swipeHandlers}
         >
+          {/* Régua de zoom móvel (apenas em celulares e quando o menu não está aberto) */}
+          {!dashboardOpen && <MobileZoomSlider />}
           {/* Timeline */}
           <div className={`overflow-y-auto overflow-x-hidden ${dashboardOpen ? 'flex-1 min-h-0' : 'flex-1'}`}>
             <Timeline 

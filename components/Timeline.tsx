@@ -8,7 +8,6 @@ import TimelineEvent from './TimelineEvent';
 import PeriodLine from './PeriodLine';
 import EmptyState from './EmptyState';
 import { useTimeline } from './TimelineWrapper';
-import { usePinchZoom } from '@/hooks/usePinchZoom';
 
 interface TimelineProps {
   events: MockEvent[];
@@ -29,17 +28,7 @@ interface TimelineProps {
 function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted }: TimelineProps) {
   const { zoom, pan, isDragging, setIsDragging, setPan, handleZoomChange, handleReset } = useTimeline();
   const [dragStart, setDragStart] = useState(0);
-  const [isPinching, setIsPinching] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Pinch-to-zoom com suporte a ponto focal
-  const pinchHandlers = usePinchZoom({
-    onZoomChange: (delta, centerX, centerY) => {
-      handleZoomChange(delta, centerX, centerY, containerRef);
-    },
-    minZoom: 0.5,
-    maxZoom: 3
-  });
 
   // Calcula e centraliza a timeline inicialmente para mostrar toda a linha
   useLayoutEffect(() => {
@@ -110,19 +99,8 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    // Detecta pinch (2 dedos)
-    if (e.touches.length === 2) {
-      setIsPinching(true);
-      setIsDragging(false);
-      isPanningRef.current = false;
-      touchStartRef.current = null;
-      lastTapRef.current = null;
-      pinchHandlers.onTouchStart(e);
-      return;
-    }
-    
     // Double-tap para zoom rápido (mobile)
-    if (e.touches.length === 1 && !isPinching) {
+    if (e.touches.length === 1) {
       const touch = e.touches[0];
       const now = Date.now();
       
@@ -159,19 +137,11 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
       setIsDragging(true);
       setDragStart(touch.clientX - pan);
     }
-  }, [pan, setIsDragging, isPinching, pinchHandlers, zoom, handleZoomChange, handleReset]);
+  }, [pan, setIsDragging, zoom, handleZoomChange, handleReset]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    // Pinch-to-zoom
-    if (e.touches.length === 2 && isPinching) {
-      e.preventDefault();
-      e.stopPropagation();
-      pinchHandlers.onTouchMove(e);
-      return;
-    }
-    
     // Drag normal (1 dedo)
-    if (isDragging && e.touches.length === 1 && !isPinching && touchStartRef.current) {
+    if (isDragging && e.touches.length === 1 && touchStartRef.current) {
       const touch = e.touches[0];
       const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
       const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
@@ -185,17 +155,13 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
         setPan(touch.clientX - dragStart);
       }
     }
-  }, [isDragging, isPinching, dragStart, setPan, pinchHandlers]);
+  }, [isDragging, dragStart, setPan]);
 
   const handleTouchEnd = useCallback(() => {
-    if (isPinching) {
-      pinchHandlers.onTouchEnd();
-      setIsPinching(false);
-    }
     setIsDragging(false);
     isPanningRef.current = false;
     touchStartRef.current = null;
-  }, [isPinching, setIsPinching, pinchHandlers]);
+  }, [setIsDragging]);
 
   // Mesmo sem eventos, mostra a linha base com todos os dias do mês
 
@@ -431,14 +397,14 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
       </div>
 
       {/* Instruções - apenas quando não está interagindo (estilo adaptativo ao tema) */}
-      {!isDragging && !isPinching && (
+      {!isDragging && (
         <div className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 backdrop-blur-sm px-4 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm pointer-events-none animate-fade-in z-50 ${
           themeId === 'tema3'
             ? 'bg-white/80 text-slate-600 border border-slate-200/60 shadow-md'
             : 'bg-slate-800/90 text-slate-300 border border-slate-700/50'
         }`}>
-          <span className="hidden sm:inline">🖱️ Arraste para mover • 🔍 Ctrl+Scroll para zoom • 📱 Pinça para zoom</span>
-          <span className="sm:hidden">👆 Arraste • 📱 Pinça para zoom</span>
+          <span className="hidden sm:inline">🖱️ Arraste para mover • 🔍 Ctrl+Scroll para zoom • ➕ Botões de zoom no topo</span>
+          <span className="sm:hidden">👆 Arraste a timeline • 📏 Use a régua de zoom no canto</span>
         </div>
       )}
     </div>

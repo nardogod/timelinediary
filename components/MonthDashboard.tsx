@@ -79,9 +79,9 @@ export default function MonthDashboard({ events, year, month }: MonthDashboardPr
         )}
       </div>
 
-      {/* Gráfico simples de barras */}
+      {/* Gráfico simples de barras - mostra apenas em telas médias+ para não poluir o mobile */}
       {stats.total > 0 && (
-        <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-4">
+        <div className="hidden sm:block bg-slate-800/60 backdrop-blur-sm rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="w-4 h-4 text-slate-400" />
             <h4 className="text-slate-300 text-sm font-medium">Distribuição por tipo</h4>

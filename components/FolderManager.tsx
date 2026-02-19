@@ -1,8 +1,14 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo } from 'react';
-import { MockFolder, getFoldersByUserId, createFolder, deleteFolder, updateFolder, FOLDER_COLORS } from '@/lib/folders';
+import { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { FOLDER_COLORS } from '@/lib/folders';
 import { Plus, Trash2, Edit2, X, Check, Folder } from 'lucide-react';
+
+interface Folder {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface FolderManagerProps {
   userId: string;
@@ -10,7 +16,7 @@ interface FolderManagerProps {
 }
 
 function FolderManager({ userId, onFoldersChange }: FolderManagerProps) {
-  const [folders, setFolders] = useState<MockFolder[]>(() => getFoldersByUserId(userId));
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
@@ -18,43 +24,99 @@ function FolderManager({ userId, onFoldersChange }: FolderManagerProps) {
   const [editFolderName, setEditFolderName] = useState('');
   const [editFolderColor, setEditFolderColor] = useState('');
 
+  // Carrega pastas reais do usuário (Neon via API)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/folders?userId=${userId}`);
+        const data = res.ok ? await res.json() : [];
+        setFolders(Array.isArray(data) ? data : []);
+      } catch {
+        setFolders([]);
+      }
+    };
+    load();
+  }, [userId]);
+
   // Memoiza cores disponíveis
   const availableColors = useMemo(() => FOLDER_COLORS.slice(0, 5), []);
 
-  const handleCreate = useCallback(() => {
-    if (newFolderName.trim()) {
-      createFolder(userId, newFolderName.trim(), newFolderColor);
-      setFolders(getFoldersByUserId(userId));
-      setNewFolderName('');
-      setIsCreating(false);
+  const reloadFolders = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/folders?userId=${userId}`);
+      const data = res.ok ? await res.json() : [];
+      setFolders(Array.isArray(data) ? data : []);
       onFoldersChange?.();
-    }
-  }, [userId, newFolderName, newFolderColor, onFoldersChange]);
-
-  const handleDelete = useCallback((folderId: string) => {
-    if (confirm('Tem certeza que deseja deletar esta pasta? Os eventos não serão deletados, apenas perderão a categoria.')) {
-      deleteFolder(userId, folderId);
-      setFolders(getFoldersByUserId(userId));
-      onFoldersChange?.();
+    } catch {
+      setFolders([]);
     }
   }, [userId, onFoldersChange]);
 
-  const handleStartEdit = useCallback((folder: MockFolder) => {
+  const handleCreate = useCallback(async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      const res = await fetch('/api/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newFolderName.trim(), color: newFolderColor }),
+      });
+      if (!res.ok) {
+        alert('Não foi possível criar a pasta. Tente novamente.');
+        return;
+      }
+      setNewFolderName('');
+      setIsCreating(false);
+      await reloadFolders();
+    } catch {
+      alert('Erro de conexão ao criar pasta.');
+    }
+  }, [newFolderName, newFolderColor, reloadFolders]);
+
+  const handleDelete = useCallback(
+    async (folderId: string) => {
+      if (!confirm('Tem certeza que deseja deletar esta pasta? Os eventos não serão deletados, apenas perderão a categoria.')) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/folders?id=${encodeURIComponent(folderId)}`, { method: 'DELETE' });
+        if (!res.ok) {
+          alert('Não foi possível deletar a pasta.');
+          return;
+        }
+        await reloadFolders();
+      } catch {
+        alert('Erro de conexão ao deletar pasta.');
+      }
+    },
+    [reloadFolders]
+  );
+
+  const handleStartEdit = useCallback((folder: Folder) => {
     setEditingId(folder.id);
     setEditFolderName(folder.name);
     setEditFolderColor(folder.color);
   }, []);
 
-  const handleSaveEdit = useCallback(() => {
-    if (editingId && editFolderName.trim()) {
-      updateFolder(userId, editingId, { name: editFolderName.trim(), color: editFolderColor });
-      setFolders(getFoldersByUserId(userId));
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingId || !editFolderName.trim()) return;
+    try {
+      const res = await fetch('/api/folders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, name: editFolderName.trim(), color: editFolderColor }),
+      });
+      if (!res.ok) {
+        alert('Não foi possível salvar as alterações da pasta.');
+        return;
+      }
       setEditingId(null);
       setEditFolderName('');
       setEditFolderColor('');
-      onFoldersChange?.();
+      await reloadFolders();
+    } catch {
+      alert('Erro de conexão ao editar pasta.');
     }
-  }, [editingId, editFolderName, editFolderColor, userId, onFoldersChange]);
+  }, [editingId, editFolderName, editFolderColor, reloadFolders]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);

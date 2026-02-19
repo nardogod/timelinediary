@@ -7,6 +7,8 @@ import { formatDateShort } from '@/lib/utils';
 import Tooltip from './Tooltip';
 import EventPreview from './EventPreview';
 import { ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { trackEvent } from '@/lib/analytics';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TimelineEventProps {
   event: MockEvent;
@@ -19,6 +21,7 @@ interface TimelineEventProps {
 }
 
 function TimelineEvent({ event, position, placement, settings, canEdit, username, onEventDeleted }: TimelineEventProps) {
+  const { user } = useAuth();
   const [showPreview, setShowPreview] = useState(false);
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
   const [isExpanded, setIsExpanded] = useState(false);
@@ -90,6 +93,18 @@ function TimelineEvent({ event, position, placement, settings, canEdit, username
   const handleLinkClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (event.link) {
+      // Tracking Mixpanel
+      trackEvent('event_link_click', {
+        eventId: event.id,
+        title: event.title,
+        date: event.date,
+        type: event.type,
+        link: event.link,
+        folder: event.folder || null,
+        viewerUserId: user?.id ?? null,
+        profileUsername: username ?? null,
+      });
+
       // Cancela qualquer timeout pendente
       if (collapseTimeoutRef.current) {
         clearTimeout(collapseTimeoutRef.current);
@@ -100,7 +115,7 @@ function TimelineEvent({ event, position, placement, settings, canEdit, username
       // Colapsa imediatamente após abrir o link para não atrapalhar visualização
       setIsExpanded(false);
     }
-  }, [event.link]);
+  }, [event.id, event.title, event.date, event.type, event.link, event.folder, user?.id, username]);
 
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     if (eventRef.current && !isExpanded) {
