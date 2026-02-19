@@ -26,9 +26,10 @@ interface DashboardProps {
   onFoldersChange?: () => void;
   onSettingsChange?: () => void;
   onAchievementsChange?: () => void;
+  completedTasksCount?: number; // Total de tarefas concluídas no mês
 }
 
-export default function Dashboard({ themeId, events, year, month, username, profileUserId, onFoldersChange, onSettingsChange, onAchievementsChange }: DashboardProps) {
+export default function Dashboard({ themeId, events, year, month, username, profileUserId, onFoldersChange, onSettingsChange, onAchievementsChange, completedTasksCount = 0 }: DashboardProps) {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<'main' | 'settings' | 'achievements' | 'telegram'>('main');
   const isTema2 = themeId === 'tema2';
@@ -129,7 +130,7 @@ export default function Dashboard({ themeId, events, year, month, username, prof
                 }}
               />
             )}
-            <MonthDashboard events={events} year={year} month={month} />
+            <MonthDashboard events={events} year={year} month={month} completedTasksCount={completedTasksCount} />
             {/* Recommendations sempre aparece, mesmo sem eventos */}
             <Recommendations events={events} year={year} month={month} />
           </>

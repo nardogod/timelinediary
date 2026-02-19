@@ -7,6 +7,7 @@ function rowToFolder(row: Record<string, unknown>): Folder {
     user_id: String(row.user_id),
     name: String(row.name),
     color: String(row.color),
+    is_private: row.is_private != null ? Boolean(row.is_private) : false,
     created_at: String(row.created_at),
   };
 }
@@ -32,11 +33,12 @@ export async function createFolder(folderData: {
   user_id: string;
   name: string;
   color: string;
+  is_private?: boolean;
 }): Promise<Folder | null> {
   const sql = getNeon();
   const rows = await sql`
-    INSERT INTO folders (user_id, name, color)
-    VALUES (${folderData.user_id}, ${folderData.name.trim()}, ${folderData.color})
+    INSERT INTO folders (user_id, name, color, is_private)
+    VALUES (${folderData.user_id}, ${folderData.name.trim()}, ${folderData.color}, ${folderData.is_private ?? false})
     RETURNING *
   `;
   const row = (rows as Record<string, unknown>[])[0];
@@ -51,10 +53,11 @@ export async function updateFolder(
   if (!existing) return null;
   const name = updates.name ?? existing.name;
   const color = updates.color ?? existing.color;
+  const is_private = updates.is_private !== undefined ? updates.is_private : existing.is_private ?? false;
 
   const sql = getNeon();
   const rows = await sql`
-    UPDATE folders SET name = ${name}, color = ${color}
+    UPDATE folders SET name = ${name}, color = ${color}, is_private = ${is_private}
     WHERE id = ${folderId}
     RETURNING *
   `;

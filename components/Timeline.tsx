@@ -3,8 +3,9 @@
 import { useRef, useState, useEffect, useMemo, memo, useCallback, useLayoutEffect } from 'react';
 import { MockEvent } from '@/lib/mockData';
 import { UserSettings } from '@/lib/settings';
-import { calculateEventPosition, getTimelineMarkers, getDailyMarkers, getEventPosition } from '@/lib/utils';
+import { calculateEventPosition, getTimelineMarkers, getDailyMarkers, getEventPosition, groupEventsByDate, getEventVerticalPosition, isTaskEvent } from '@/lib/utils';
 import TimelineEvent from './TimelineEvent';
+import GroupedTaskEvents from './GroupedTaskEvents';
 import PeriodLine from './PeriodLine';
 import EmptyState from './EmptyState';
 import { useTimeline } from './TimelineWrapper';
@@ -23,9 +24,11 @@ interface TimelineProps {
   username?: string;
   /** Callback após excluir um evento (para recarregar lista) */
   onEventDeleted?: () => void;
+  /** Callback após editar uma tarefa (para recarregar timeline) */
+  onTaskEdited?: () => void;
 }
 
-function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted }: TimelineProps) {
+function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited }: TimelineProps) {
   const { zoom, pan, isDragging, setIsDragging, setPan, handleZoomChange, handleReset } = useTimeline();
   const [dragStart, setDragStart] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,19 +50,81 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
   }, [events.length, setPan]);
 
   // Memoiza cálculos pesados - sempre mostra linha base mesmo sem eventos
-  const { markers, dailyMarkers, sortedEvents } = useMemo(() => {
+  const { markers, dailyMarkers, sortedEvents, groupedEvents, regularEvents } = useMemo(() => {
     const sorted = events.length > 0 
       ? [...events].sort((a, b) => 
           new Date(a.date).getTime() - new Date(b.date).getTime()
         )
       : [];
     
+    // Agrupa eventos por data
+    const groups = groupEventsByDate(sorted);
+    
+    // Separa eventos agrupados de tarefas e eventos regulares
+    const grouped: Array<{ date: string; events: MockEvent[] }> = [];
+    const regular: MockEvent[] = [];
+    
+    for (const [date, { regular: regularEvts, tasks }] of groups.entries()) {
+      // Se há tarefas no mesmo dia, agrupa elas
+      if (tasks.length > 0) {
+        grouped.push({ date, events: tasks });
+      }
+      // Eventos regulares são adicionados normalmente
+      regular.push(...regularEvts);
+    }
+    
     return {
       markers: getTimelineMarkers(events, defaultMonth),
       dailyMarkers: getDailyMarkers(events, defaultMonth),
-      sortedEvents: sorted
+      sortedEvents: sorted,
+      groupedEvents: grouped,
+      regularEvents: regular
     };
   }, [events, defaultMonth]);
+
+  // Layout para grupos de tarefas concluídas (evita sobreposição horizontal)
+  const groupedTasksLayout = useMemo(() => {
+    if (!groupedEvents || groupedEvents.length === 0) return [];
+
+    const layouts: Array<{
+      date: string;
+      events: MockEvent[];
+      position: number;
+      layer: number;
+      placement: 'top' | 'bottom';
+    }> = [];
+
+    const lastPosPerLayer: number[] = [];
+    const MIN_GAP_PERCENT = 8; // distância mínima entre cards na mesma camada (aumentado para evitar sobreposição)
+
+    const byDate = [...groupedEvents].sort((a, b) => a.date.localeCompare(b.date));
+
+    byDate.forEach((group) => {
+      const pos = calculateEventPosition(group.date, events, defaultMonth);
+
+      // Encontra a primeira camada onde não haja colisão horizontal
+      let layer = 0;
+      while (
+        layer < lastPosPerLayer.length &&
+        Math.abs(pos - lastPosPerLayer[layer]) < MIN_GAP_PERCENT
+      ) {
+        layer++;
+      }
+      lastPosPerLayer[layer] = pos;
+
+      const placement: 'top' | 'bottom' = layer % 2 === 0 ? 'top' : 'bottom';
+
+      layouts.push({
+        date: group.date,
+        events: group.events,
+        position: pos,
+        layer,
+        placement,
+      });
+    });
+
+    return layouts;
+  }, [groupedEvents, events, defaultMonth]);
 
   // Otimiza handlers de mouse/touch com useCallback
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -374,17 +439,44 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
               );
             })}
 
-            {/* Eventos pontuais */}
-            {sortedEvents.map((event, index) => {
+            {/* Eventos agrupados de tarefas */}
+            {groupedTasksLayout.map((group, groupIndex) => {
+              return (
+                <GroupedTaskEvents
+                  key={`grouped-${group.date}-${groupIndex}`}
+                  events={group.events}
+                  position={group.position}
+                  placement={group.placement}
+                  layer={group.layer}
+                  settings={settings}
+                  onTaskEdit={onTaskEdited}
+                  onEventsUpdate={onTaskEdited}
+                  onEventDeleted={onEventDeleted}
+                  canEdit={canEdit}
+                />
+              );
+            })}
+
+            {/* Eventos regulares (não agrupados) */}
+            {regularEvents.map((event) => {
               const pos = calculateEventPosition(event.date, events, defaultMonth);
-              const placement = getEventPosition(event, events, index);
+              const eventIndex = sortedEvents.findIndex(e => e.id === event.id);
+              const verticalPos = getEventVerticalPosition(event, sortedEvents, eventIndex);
+              
+              // Verifica se há eventos agrupados de tarefas no mesmo dia
+          // Calcula offset de camada considerando grupos de tarefas no mesmo dia
+          const sameDayGroup = groupedEvents.find(g => g.date === event.date.split('T')[0]);
+          // Se há grupo de tarefas no mesmo dia, eventos regulares começam após todas as camadas de tarefas
+          const taskLayers = sameDayGroup ? Math.ceil(sameDayGroup.events.length / 2) + 1 : 0;
+          const layerOffset = verticalPos.layer + taskLayers;
               
               return (
                 <TimelineEvent
                   key={event.id}
                   event={event}
                   position={pos}
-                  placement={placement}
+                  placement={verticalPos.placement}
+                  layer={layerOffset}
                   settings={settings}
                   canEdit={canEdit}
                   username={username}

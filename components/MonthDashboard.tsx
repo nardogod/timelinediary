@@ -8,10 +8,12 @@ interface MonthDashboardProps {
   events: MockEvent[];
   year: number;
   month: number;
+  completedTasksCount?: number; // Total de tarefas concluídas no mês
 }
 
-export default function MonthDashboard({ events, year, month }: MonthDashboardProps) {
+export default function MonthDashboard({ events, year, month, completedTasksCount = 0 }: MonthDashboardProps) {
   const stats = getMonthStats(events, year, month);
+  const totalWithTasks = stats.total + completedTasksCount;
   const monthLabel = new Date(year, month).toLocaleDateString('pt-BR', { 
     month: 'long', 
     year: 'numeric' 
@@ -30,8 +32,16 @@ export default function MonthDashboard({ events, year, month }: MonthDashboardPr
       <div className="bg-slate-800/60 backdrop-blur-sm rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-slate-300 text-sm">Total de eventos</span>
-          <span className="text-white font-bold text-xl">{stats.total}</span>
+          <span className="text-white font-bold text-xl">{totalWithTasks}</span>
         </div>
+        {completedTasksCount > 0 && (
+          <div className="mb-3 pb-3 border-b border-slate-700">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 text-xs">Incluindo tarefas concluídas</span>
+              <span className="text-slate-300 text-sm font-medium">+{completedTasksCount}</span>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -80,7 +90,7 @@ export default function MonthDashboard({ events, year, month }: MonthDashboardPr
       </div>
 
       {/* Gráfico simples de barras - mostra apenas em telas médias+ para não poluir o mobile */}
-      {stats.total > 0 && (
+      {totalWithTasks > 0 && (
         <div className="hidden sm:block bg-slate-800/60 backdrop-blur-sm rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="w-4 h-4 text-slate-400" />
@@ -92,7 +102,7 @@ export default function MonthDashboard({ events, year, month }: MonthDashboardPr
                 <div 
                   className="w-full rounded-t transition-all hover:opacity-80"
                   style={{ 
-                    height: stats.total > 0 ? `${Math.max((stats.simple / stats.total) * 100, 5)}%` : '0%',
+                    height: totalWithTasks > 0 ? `${Math.max((stats.simple / totalWithTasks) * 100, 5)}%` : '0%',
                     backgroundColor: EVENT_COLORS.simple,
                     minHeight: stats.simple > 0 ? '8px' : '0'
                   }}
@@ -109,7 +119,7 @@ export default function MonthDashboard({ events, year, month }: MonthDashboardPr
                 <div 
                   className="w-full rounded-t transition-all hover:opacity-80"
                   style={{ 
-                    height: stats.total > 0 ? `${Math.max((stats.medium / stats.total) * 100, 5)}%` : '0%',
+                    height: totalWithTasks > 0 ? `${Math.max((stats.medium / totalWithTasks) * 100, 5)}%` : '0%',
                     backgroundColor: EVENT_COLORS.medium,
                     minHeight: stats.medium > 0 ? '8px' : '0'
                   }}
@@ -126,7 +136,7 @@ export default function MonthDashboard({ events, year, month }: MonthDashboardPr
                 <div 
                   className="w-full rounded-t transition-all hover:opacity-80"
                   style={{ 
-                    height: stats.total > 0 ? `${Math.max((stats.important / stats.total) * 100, 5)}%` : '0%',
+                    height: totalWithTasks > 0 ? `${Math.max((stats.important / totalWithTasks) * 100, 5)}%` : '0%',
                     backgroundColor: EVENT_COLORS.important,
                     minHeight: stats.important > 0 ? '8px' : '0'
                   }}

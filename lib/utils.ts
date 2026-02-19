@@ -301,7 +301,84 @@ export function getDailyMarkers(events: { date: string }[], defaultMonth?: { yea
 }
 
 /**
+ * Identifica se um evento é de uma tarefa concluída (tem formato "título - HH:MM")
+ */
+export function isTaskEvent(event: { title: string }): boolean {
+  return / - \d{2}:\d{2}$/.test(event.title);
+}
+
+/**
+ * Agrupa eventos por data e identifica eventos de tarefas
+ */
+export function groupEventsByDate<T extends { date: string; title: string }>(
+  events: T[]
+): Map<string, { regular: T[]; tasks: T[] }> {
+  const groups = new Map<string, { regular: T[]; tasks: T[] }>();
+  
+  for (const event of events) {
+    const dateKey = event.date.split('T')[0]; // YYYY-MM-DD
+    if (!groups.has(dateKey)) {
+      groups.set(dateKey, { regular: [], tasks: [] });
+    }
+    const group = groups.get(dateKey)!;
+    if (isTaskEvent(event)) {
+      group.tasks.push(event);
+    } else {
+      group.regular.push(event);
+    }
+  }
+  
+  return groups;
+}
+
+/**
+ * Calcula posição vertical para eventos do mesmo dia, evitando sobreposição
+ */
+export function getEventVerticalPosition(
+  event: { date: string; title: string; id?: string },
+  events: { date: string; title: string; id?: string }[],
+  index: number
+): { placement: 'top' | 'bottom'; layer: number } {
+  const dateKey = event.date.split('T')[0];
+  const sameDayEvents = events.filter(e => e.date.split('T')[0] === dateKey);
+  
+  // Separa eventos de tarefas e eventos regulares no mesmo dia
+  const sameDayTasks = sameDayEvents.filter(e => isTaskEvent(e));
+  const sameDayRegular = sameDayEvents.filter(e => !isTaskEvent(e));
+  
+  // Se é um evento de tarefa, retorna posição especial (será agrupado)
+  if (isTaskEvent(event)) {
+    const taskIndex = sameDayTasks.findIndex(e => (e.id || e.title) === (event.id || event.title));
+    const layer = Math.floor(taskIndex / 2);
+    const placement = taskIndex % 2 === 0 ? 'top' : 'bottom';
+    return { placement, layer };
+  }
+  
+  // Para eventos regulares, considera se há tarefas agrupadas no mesmo dia
+  const regularIndex = sameDayRegular.findIndex(e => (e.id || e.title) === (event.id || event.title));
+  
+  // Se há tarefas agrupadas, eventos regulares começam em uma camada acima
+  // Cada grupo de tarefas ocupa uma camada, então eventos regulares começam após todas as camadas de tarefas
+  const baseLayer = sameDayTasks.length > 0 ? Math.ceil(sameDayTasks.length / 2) + 1 : 0;
+  
+  // Se há muitos eventos regulares no mesmo dia, usa camadas adicionais
+  // Cada camada pode ter até 2 eventos (um em top, um em bottom)
+  if (sameDayRegular.length > 2) {
+    const layer = baseLayer + Math.floor(regularIndex / 2);
+    const placement = regularIndex % 2 === 0 ? 'top' : 'bottom';
+    return { placement, layer };
+  }
+  
+  // Para poucos eventos, alterna top/bottom na camada base
+  return {
+    placement: regularIndex % 2 === 0 ? 'top' : 'bottom',
+    layer: baseLayer
+  };
+}
+
+/**
  * Posição vertical do evento (top/bottom) para evitar sobreposição
+ * @deprecated Use getEventVerticalPosition para melhor controle
  */
 export function getEventPosition(
   _event: { date: string },

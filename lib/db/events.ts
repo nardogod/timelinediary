@@ -34,6 +34,7 @@ function rowToEvent(row: Record<string, unknown>): Event {
     type: row.type as Event['type'],
     link: row.link != null ? String(row.link) : null,
     folder_id: row.folder_id != null ? String(row.folder_id) : null,
+    task_id: row.task_id != null ? String(row.task_id) : null,
     created_at: String(row.created_at),
   };
 }
@@ -75,12 +76,13 @@ export async function createEvent(eventData: {
   type: 'simple' | 'medium' | 'important';
   link?: string | null;
   folder_id?: string | null;
+  task_id?: string | null;
 }): Promise<Event | null> {
   const sql = getNeon();
   const dateOnly = toDateOnly(eventData.date);
   const endDateOnly = eventData.end_date != null ? toDateOnly(eventData.end_date) : null;
   const rows = await sql`
-    INSERT INTO events (user_id, title, date, end_date, type, link, folder_id)
+    INSERT INTO events (user_id, title, date, end_date, type, link, folder_id, task_id)
     VALUES (
       ${eventData.user_id},
       ${eventData.title.trim()},
@@ -88,7 +90,8 @@ export async function createEvent(eventData: {
       ${endDateOnly},
       ${eventData.type},
       ${eventData.link ?? null},
-      ${eventData.folder_id ?? null}
+      ${eventData.folder_id ?? null},
+      ${eventData.task_id ?? null}
     )
     RETURNING *
   `;
@@ -108,11 +111,12 @@ export async function updateEvent(
   const type = updates.type ?? existing.type;
   const link = updates.link !== undefined ? updates.link : existing.link;
   const folder_id = updates.folder_id !== undefined ? updates.folder_id : existing.folder_id;
+  const task_id = updates.task_id !== undefined ? updates.task_id : existing.task_id;
 
   const sql = getNeon();
   const rows = await sql`
     UPDATE events
-    SET title = ${title}, date = ${date}, end_date = ${end_date}, type = ${type}, link = ${link}, folder_id = ${folder_id}
+    SET title = ${title}, date = ${date}, end_date = ${end_date}, type = ${type}, link = ${link}, folder_id = ${folder_id}, task_id = ${task_id}
     WHERE id = ${eventId}
     RETURNING *
   `;

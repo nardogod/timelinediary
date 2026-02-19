@@ -14,6 +14,7 @@ import FollowButton from '@/components/FollowButton';
 import ToastContainer, { useToast } from '@/components/Toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import Tooltip from '@/components/Tooltip';
+import NotesList from '@/components/NotesList';
 import { Menu, X, ArrowLeft, Plus, Home } from 'lucide-react';
 import GlobalSearch from '@/components/GlobalSearch';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,7 +28,7 @@ import { useKeyboard } from '@/hooks/useKeyboard';
 import { trackEvent } from '@/lib/analytics';
 
 type ApiUser = { id: string; username: string; name: string; avatar: string | null };
-type ApiEvent = { id: string; user_id: string; title: string; date: string; end_date: string | null; type: string; link: string | null; folder_id: string | null };
+type ApiEvent = { id: string; user_id: string; title: string; date: string; end_date: string | null; type: string; link: string | null; folder_id: string | null; task_id?: string | null };
 type ApiFolder = { id: string; user_id: string; name: string; color: string; created_at: string };
 
 interface PageProps {
@@ -53,6 +54,12 @@ export default function UserTimelinePage({ params }: PageProps) {
   const [foldersKey, setFoldersKey] = useState(0);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesFolderId, setNotesFolderId] = useState<string>('');
+  const [notesFolderName, setNotesFolderName] = useState<string>('');
+  const [completedTasksCount, setCompletedTasksCount] = useState<Map<string, number>>(new Map());
+  const [totalCompletedTasks, setTotalCompletedTasks] = useState<number>(0);
+  const [monthCompletedTasks, setMonthCompletedTasks] = useState<number>(0);
 
   const loadUserData = useCallback(async () => {
     if (!username) return;
@@ -65,13 +72,33 @@ export default function UserTimelinePage({ params }: PageProps) {
     const user: ApiUser = await userRes.json();
     setProfileUser(user);
 
-    const [eventsRes, foldersRes] = await Promise.all([
+    const [eventsRes, foldersRes, tasksStatsRes] = await Promise.all([
       fetch(`/api/events?userId=${user.id}`),
       fetch(`/api/folders?userId=${user.id}`),
+      // Busca estatísticas de tarefas concluídas apenas se for o próprio usuário
+      currentUser && currentUser.id === user.id 
+        ? fetch(`/api/tasks/stats?userId=${user.id}&year=${selectedYear}&month=${selectedMonth}`)
+        : Promise.resolve({ ok: false, json: () => Promise.resolve({ byFolder: {}, total: 0, byMonth: 0 }) }),
     ]);
 
     const events: ApiEvent[] = eventsRes.ok ? await eventsRes.json() : [];
     const apiFolders: ApiFolder[] = foldersRes.ok ? await foldersRes.json() : [];
+    
+    // Processa estatísticas de tarefas concluídas
+    if (tasksStatsRes.ok) {
+      const tasksStats = await tasksStatsRes.json();
+      const countsMap = new Map<string, number>();
+      Object.entries(tasksStats.byFolder || {}).forEach(([folderId, count]) => {
+        countsMap.set(folderId, count as number);
+      });
+      setCompletedTasksCount(countsMap);
+      setTotalCompletedTasks(tasksStats.total || 0);
+      setMonthCompletedTasks(tasksStats.byMonth || 0);
+    } else {
+      setCompletedTasksCount(new Map());
+      setTotalCompletedTasks(0);
+      setMonthCompletedTasks(0);
+    }
 
     const folderMap = new Map(apiFolders.map((f) => [f.id, f.name]));
     // Normaliza datas para YYYY-MM-DD (remove horário e timezone)
@@ -104,6 +131,7 @@ export default function UserTimelinePage({ params }: PageProps) {
       type: e.type as 'simple' | 'medium' | 'important',
       link: e.link ?? undefined,
       folder: e.folder_id ? folderMap.get(e.folder_id) : undefined,
+      taskId: (e as any).task_id ?? undefined,
     }));
     setAllEvents(mappedEvents);
 
@@ -142,6 +170,25 @@ export default function UserTimelinePage({ params }: PageProps) {
       loadUserData();
     }
   }, [username, loadUserData]);
+
+  // Recarrega estatísticas de tarefas quando muda o mês/ano
+  useEffect(() => {
+    if (!profileUser || !currentUser || currentUser.id !== profileUser.id) return;
+    
+    const loadTaskStats = async () => {
+      try {
+        const res = await fetch(`/api/tasks/stats?userId=${profileUser.id}&year=${selectedYear}&month=${selectedMonth}`);
+        if (res.ok) {
+          const stats = await res.json();
+          setMonthCompletedTasks(stats.byMonth || 0);
+        }
+      } catch (error) {
+        console.error('Error loading task stats:', error);
+      }
+    };
+    
+    loadTaskStats();
+  }, [selectedYear, selectedMonth, profileUser, currentUser]);
 
   // Analytics: visualização de perfil/timeline
   useEffect(() => {
@@ -522,6 +569,18 @@ export default function UserTimelinePage({ params }: PageProps) {
                 events={allEvents}
                 selectedFolder={selectedFolder}
                 onSelectFolder={setSelectedFolder}
+                completedTasksCount={completedTasksCount}
+                totalCompletedTasks={totalCompletedTasks}
+                onOpenNotes={(folderId, folderName) => {
+                  // Só permite abrir notas se for o dono da conta
+                  if (currentUser && user && currentUser.id === user.id) {
+                    setNotesFolderId(folderId);
+                    setNotesFolderName(folderName);
+                    setNotesOpen(true);
+                  } else {
+                    showToast('Você precisa estar logado para acessar as notas.', 'warning');
+                  }
+                }}
               />
             )}
 
@@ -587,6 +646,7 @@ export default function UserTimelinePage({ params }: PageProps) {
               canEdit={!!(currentUser && user && currentUser.id === user.id)}
               username={username}
               onEventDeleted={loadUserData}
+              onTaskEdited={loadUserData}
             />
           </div>
 
@@ -608,11 +668,29 @@ export default function UserTimelinePage({ params }: PageProps) {
                 onFoldersChange={handleFoldersChange}
                 onSettingsChange={handleSettingsChange}
                 onAchievementsChange={handleAchievementsChange}
+                completedTasksCount={monthCompletedTasks}
               />
             </div>
           )}
         </div>
       </div>
+
+      {/* Notes List Modal */}
+      {currentUser && user && currentUser.id === user.id && notesOpen && (
+        <NotesList
+          folderId={notesFolderId}
+          folderName={notesFolderName}
+          isOpen={notesOpen}
+          onClose={() => {
+            setNotesOpen(false);
+            setNotesFolderId('');
+            setNotesFolderName('');
+          }}
+          onTaskCompleted={() => {
+            loadUserData();
+          }}
+        />
+      )}
     </TimelineWrapper>
   );
 }

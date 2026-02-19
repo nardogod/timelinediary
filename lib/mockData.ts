@@ -14,6 +14,7 @@ export interface MockEvent {
   link?: string; // Link opcional (Instagram, site, etc)
   endDate?: string; // Data de término (opcional - para eventos com período)
   folder?: string; // Pasta/categoria do evento (opcional)
+  taskId?: string; // ID da tarefa relacionada (opcional - para eventos de tarefas concluídas)
 }
 
 export const MOCK_USERS: MockUser[] = [

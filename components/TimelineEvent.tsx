@@ -14,13 +14,14 @@ interface TimelineEventProps {
   event: MockEvent;
   position: number;
   placement: 'top' | 'bottom';
+  layer?: number;
   settings?: UserSettings | null;
   canEdit?: boolean;
   username?: string;
   onEventDeleted?: () => void;
 }
 
-function TimelineEvent({ event, position, placement, settings, canEdit, username, onEventDeleted }: TimelineEventProps) {
+function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted }: TimelineEventProps) {
   const { user } = useAuth();
   const [showPreview, setShowPreview] = useState(false);
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
@@ -154,9 +155,11 @@ function TimelineEvent({ event, position, placement, settings, canEdit, username
         data-event-id={event.id}
         style={{ 
           left: `${position}%`, 
-          top: '50%',
+          top: isTop 
+            ? `calc(50% - ${layer * 130}px)` 
+            : `calc(50% + ${layer * 130}px)`,
           transform: 'translate(-50%, -50%)',
-          zIndex: isExpanded ? 100 : 70
+          zIndex: isExpanded ? 100 : 50 + layer
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}

@@ -14,7 +14,20 @@ export interface Folder {
   user_id: string;
   name: string;
   color: string;
+  is_private?: boolean;
   created_at: string;
+}
+
+export interface Task {
+  id: string;
+  user_id: string;
+  folder_id: string;
+  title: string;
+  details: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Event {
@@ -26,6 +39,7 @@ export interface Event {
   type: 'simple' | 'medium' | 'important';
   link: string | null;
   folder_id: string | null;
+  task_id?: string | null;
   created_at: string;
 }
 

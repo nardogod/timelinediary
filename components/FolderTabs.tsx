@@ -3,27 +3,35 @@
 import { useMemo, memo } from 'react';
 import { MockEvent } from '@/lib/mockData';
 import { MockFolder } from '@/lib/folders';
-import { Folder } from 'lucide-react';
+import { Folder, FileText } from 'lucide-react';
 
 interface FolderTabsProps {
   folders: MockFolder[];
   events: MockEvent[];
   selectedFolder: string | null;
   onSelectFolder: (folderId: string | null) => void;
+  onOpenNotes?: (folderId: string, folderName: string) => void;
+  completedTasksCount?: Map<string, number>; // Map<folderId, count>
+  totalCompletedTasks?: number;
 }
 
-function FolderTabs({ folders, events, selectedFolder, onSelectFolder }: FolderTabsProps) {
-  // Memoiza contagem de eventos por pasta
+function FolderTabs({ folders, events, selectedFolder, onSelectFolder, onOpenNotes, completedTasksCount = new Map(), totalCompletedTasks = 0 }: FolderTabsProps) {
+  // Memoiza contagem de eventos por pasta (incluindo tarefas concluídas)
   const eventCounts = useMemo(() => {
     const counts = new Map<string | null, number>();
-    counts.set(null, events.length);
+    
+    // Total: eventos + tarefas concluídas
+    const regularEventsCount = events.length;
+    counts.set(null, regularEventsCount + totalCompletedTasks);
     
     folders.forEach(folder => {
-      counts.set(folder.name, events.filter(e => e.folder === folder.name).length);
+      const folderEventsCount = events.filter(e => e.folder === folder.name).length;
+      const folderTasksCount = completedTasksCount.get(folder.id) || 0;
+      counts.set(folder.name, folderEventsCount + folderTasksCount);
     });
     
     return counts;
-  }, [folders, events]);
+  }, [folders, events, completedTasksCount, totalCompletedTasks]);
 
   // Memoiza função de contagem
   const getEventCount = useMemo(() => {
@@ -71,29 +79,40 @@ function FolderTabs({ folders, events, selectedFolder, onSelectFolder }: FolderT
         const isSelected = selectedFolder === folder.name;
         
         return (
-          <button
-            key={folder.id}
-            onClick={() => onSelectFolder(folder.name)}
-            className={`
-              flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap min-h-[44px]
-              ${isSelected 
-                ? 'bg-slate-700 text-white' 
-                : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 active:scale-95'
-              }
-            `}
-            style={isSelected ? { 
-              borderLeft: `3px solid ${folder.color}` 
-            } : {}}
-          >
-            <div 
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: folder.color }}
-            ></div>
-            <span>{folder.name}</span>
-            <span className={`text-xs ${isSelected ? 'opacity-80' : 'opacity-60'}`}>
-              ({count})
-            </span>
-          </button>
+          <div key={folder.id} className="flex items-center gap-2">
+            <button
+              onClick={() => onSelectFolder(folder.name)}
+              className={`
+                flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap min-h-[44px]
+                ${isSelected 
+                  ? 'bg-slate-700 text-white' 
+                  : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 active:scale-95'
+                }
+              `}
+              style={isSelected ? { 
+                borderLeft: `3px solid ${folder.color}` 
+              } : {}}
+            >
+              <div 
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: folder.color }}
+              ></div>
+              <span>{folder.name}</span>
+              <span className={`text-xs ${isSelected ? 'opacity-80' : 'opacity-60'}`}>
+                ({count})
+              </span>
+            </button>
+            {isSelected && onOpenNotes && (
+              <button
+                onClick={() => onOpenNotes(folder.id, folder.name)}
+                className="flex items-center justify-center p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-colors min-h-[44px] min-w-[44px]"
+                aria-label="Abrir notas"
+                title="Abrir notas"
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         );
       })}
     </div>
