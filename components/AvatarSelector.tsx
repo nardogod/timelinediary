@@ -57,11 +57,20 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
   const isPremiumStyle = AVATAR_STYLES.find(s => s.name === selectedStyle)?.premium ?? false;
 
   // Gera avatares para o estilo selecionado
+  // Usa arquivos locais (muito mais rápido que API)
   const avatars = useMemo(() => {
-    return AVATAR_SEEDS.map(seed => ({
-      url: `https://api.dicebear.com/7.x/${selectedStyle}/svg?seed=${encodeURIComponent(seed)}`,
-      seed,
-    }));
+    return AVATAR_SEEDS.map(seed => {
+      // Arquivo local (gerado pelo script generate-avatars.mjs)
+      const localUrl = `/avatars/${selectedStyle}/${seed}.svg`;
+      // Fallback para API apenas se arquivo local não existir
+      const apiUrl = `https://api.dicebear.com/7.x/${selectedStyle}/svg?seed=${encodeURIComponent(seed)}`;
+      
+      return {
+        url: localUrl, // Sempre tenta local primeiro (muito mais rápido)
+        fallbackUrl: apiUrl, // Fallback se local falhar (raro)
+        seed,
+      };
+    });
   }, [selectedStyle]);
 
   // Reset loaded/failed quando muda o estilo
@@ -70,66 +79,69 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
     setFailedAvatars(new Set());
   }, [selectedStyle]);
 
-  // Preload progressivo de todas as imagens com delay para evitar rate limiting
+  // Preload de TODAS as imagens imediatamente quando o modal abre
+  // Como estão em arquivos locais, podem carregar todas de uma vez rapidamente
   useEffect(() => {
     if (!isOpen) return;
     
     let cancelled = false;
-    let timeoutIds: NodeJS.Timeout[] = [];
+    const loadPromises: Promise<void>[] = [];
     
-    // Carrega todas as imagens progressivamente com pequenos delays
-    avatars.forEach((avatar, index) => {
+    // Carrega todas as imagens simultaneamente (arquivos locais são rápidos)
+    avatars.forEach((avatar) => {
       // Verifica se já está carregado ou falhou
       if (loadedAvatars.has(avatar.url) || failedAvatars.has(avatar.url)) return;
       
-      // Primeiras 8: carregam imediatamente
-      // Resto: carrega com delay progressivo (50ms entre cada)
-      const delay = index < 8 ? 0 : (index - 8) * 50;
-      
-      const timeoutId = setTimeout(() => {
-        if (cancelled) return;
-        
+      const loadPromise = new Promise<void>((resolve) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous'; // Permite CORS se necessário
         
+        // Tenta carregar arquivo local primeiro
         img.onload = () => {
           if (!cancelled) {
             setLoadedAvatars(prev => new Set(prev).add(avatar.url));
           }
+          resolve();
         };
         
         img.onerror = () => {
           if (!cancelled) {
-            // Retry após 1 segundo
-            setTimeout(() => {
-              if (!cancelled && !loadedAvatars.has(avatar.url)) {
-                const retryImg = new Image();
-                retryImg.crossOrigin = 'anonymous';
-                retryImg.onload = () => {
-                  if (!cancelled) {
-                    setLoadedAvatars(prev => new Set(prev).add(avatar.url));
-                  }
-                };
-                retryImg.onerror = () => {
-                  if (!cancelled) {
-                    setFailedAvatars(prev => new Set(prev).add(avatar.url));
-                  }
-                };
-                retryImg.src = avatar.url;
+            // Se arquivo local falhar, tenta API como fallback
+            const fallbackImg = new Image();
+            fallbackImg.crossOrigin = 'anonymous';
+            
+            fallbackImg.onload = () => {
+              if (!cancelled) {
+                setLoadedAvatars(prev => new Set(prev).add(avatar.fallbackUrl));
               }
-            }, 1000);
+              resolve();
+            };
+            
+            fallbackImg.onerror = () => {
+              if (!cancelled) {
+                setFailedAvatars(prev => new Set(prev).add(avatar.url));
+              }
+              resolve();
+            };
+            
+            fallbackImg.src = avatar.fallbackUrl;
+          } else {
+            resolve();
           }
         };
         
         img.src = avatar.url;
-      }, delay);
+      });
       
-      timeoutIds.push(timeoutId);
+      loadPromises.push(loadPromise);
+    });
+    
+    // Aguarda todas as imagens carregarem
+    Promise.all(loadPromises).catch(() => {
+      // Ignora erros individuais, já tratados acima
     });
     
     return () => {
       cancelled = true;
-      timeoutIds.forEach(id => clearTimeout(id));
     };
   }, [isOpen, avatars, loadedAvatars, failedAvatars]);
 
@@ -274,34 +286,31 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
                     </div>
                   )}
                   
-                  {/* Image - sempre renderiza para garantir carregamento */}
-                  {isLoaded ? (
-                    <img
-                      src={avatar.url}
-                      alt={`Avatar ${index + 1}`}
-                      className={`w-full h-full object-cover transition-opacity duration-300 opacity-100 ${
-                        isPremiumStyle ? 'grayscale-[30%]' : ''
-                      }`}
-                    />
-                  ) : (
-                    <img
-                      src={avatar.url}
-                      alt={`Avatar ${index + 1}`}
-                      className={`w-full h-full object-cover transition-opacity duration-300 opacity-0 ${
-                        isPremiumStyle ? 'grayscale-[30%]' : ''
-                      }`}
-                      loading="lazy"
-                      onLoad={(e) => {
-                        const img = e.currentTarget;
-                        setLoadedAvatars(prev => new Set(prev).add(avatar.url));
-                        img.classList.remove('opacity-0');
-                        img.classList.add('opacity-100');
-                      }}
-                      onError={() => {
+                  {/* Image - sempre renderiza, tenta local primeiro, fallback para API */}
+                  <img
+                    src={isLoaded && loadedAvatars.has(avatar.fallbackUrl) ? avatar.fallbackUrl : avatar.url}
+                    alt={`Avatar ${index + 1}`}
+                    className={`w-full h-full object-cover transition-opacity duration-300 ${
+                      isLoaded ? 'opacity-100' : 'opacity-0'
+                    } ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
+                    loading="eager" // Todos carregam imediatamente (arquivos locais são rápidos)
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      const src = img.src;
+                      setLoadedAvatars(prev => new Set(prev).add(src));
+                      img.classList.remove('opacity-0');
+                      img.classList.add('opacity-100');
+                    }}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      // Se arquivo local falhar, tenta API
+                      if (img.src === avatar.url && avatar.fallbackUrl) {
+                        img.src = avatar.fallbackUrl;
+                      } else {
                         setFailedAvatars(prev => new Set(prev).add(avatar.url));
-                      }}
-                    />
-                  )}
+                      }
+                    }}
+                  />
                   
                   {isCurrent && (
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20 z-20">

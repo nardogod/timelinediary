@@ -17,7 +17,8 @@
     "db:check": "node scripts/check-neon-tables.mjs",
     "telegram:test": "node scripts/test-telegram.mjs",
     "telegram:webhook": "node scripts/set-telegram-webhook.mjs",
-    "telegram:commands": "node scripts/set-telegram-commands.mjs"
+    "telegram:commands": "node scripts/set-telegram-commands.mjs",
+    "avatars:generate": "node scripts/generate-avatars.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
