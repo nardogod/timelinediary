@@ -820,7 +820,7 @@ export default function NotesList({ folderId, folderName, isOpen, onClose, onTas
 
               {tasks.map((task) => {
                 const hasColor = task.color && task.color.trim();
-                const isLight = hasColor ? isLightColor(task.color) : false;
+                const isLight = hasColor && task.color ? isLightColor(task.color) : false;
                 return (
                 <div
                   key={task.id}
