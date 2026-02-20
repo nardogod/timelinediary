@@ -374,7 +374,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (state.step === 'ask_recurring_days') {
-        const dayNames = trimmed.split(/[,;]/).map(s => s.trim());
+        const dayNames = trimmed.split(/[,;]/).map((s: string) => s.trim());
         const daysOfWeek: DayOfWeek[] = [];
         
         for (const dayName of dayNames) {
