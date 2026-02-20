@@ -91,34 +91,38 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
   useEffect(() => {
     if (!isOpen) return;
 
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const img = entry.target as HTMLImageElement;
-            const src = img.dataset.src;
-            if (src && !loadedAvatars.has(src) && !failedAvatars.has(src)) {
-              const imageLoader = new Image();
-              imageLoader.onload = () => {
-                img.src = src;
-                setLoadedAvatars(prev => new Set(prev).add(src));
-              };
-              imageLoader.onerror = () => {
-                setFailedAvatars(prev => new Set(prev).add(src));
-              };
-              imageLoader.src = src;
-              observerRef.current?.unobserve(img);
+    // Aguarda um pouco para garantir que o DOM foi renderizado
+    const timeoutId = setTimeout(() => {
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target as HTMLImageElement;
+              const src = img.dataset.src;
+              if (src && !loadedAvatars.has(src) && !failedAvatars.has(src)) {
+                const imageLoader = new Image();
+                imageLoader.onload = () => {
+                  img.src = src;
+                  setLoadedAvatars(prev => new Set(prev).add(src));
+                };
+                imageLoader.onerror = () => {
+                  setFailedAvatars(prev => new Set(prev).add(src));
+                };
+                imageLoader.src = src;
+                observerRef.current?.unobserve(img);
+              }
             }
-          }
-        });
-      },
-      { rootMargin: '50px' }
-    );
+          });
+        },
+        { rootMargin: '50px' }
+      );
 
-    const images = document.querySelectorAll('img[data-src]');
-    images.forEach(img => observerRef.current?.observe(img));
+      const images = document.querySelectorAll('img[data-src]');
+      images.forEach(img => observerRef.current?.observe(img));
+    }, 100);
 
     return () => {
+      clearTimeout(timeoutId);
       observerRef.current?.disconnect();
     };
   }, [isOpen, avatars, loadedAvatars, failedAvatars]);
