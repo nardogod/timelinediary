@@ -90,59 +90,7 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
     });
   }, [isOpen, avatars, loadedAvatars, failedAvatars]);
 
-  // Lazy load usando Intersection Observer - simplificado e mais confiável
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Aguarda um pouco para garantir que o DOM foi renderizado
-    const timeoutId = setTimeout(() => {
-      // Desconecta observer anterior se existir
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              const img = entry.target as HTMLImageElement;
-              const src = img.dataset.src;
-              if (src && !loadedAvatars.has(src) && !failedAvatars.has(src)) {
-                // Carrega a imagem diretamente
-                const imageLoader = new Image();
-                imageLoader.onload = () => {
-                  img.src = src;
-                  img.removeAttribute('data-src');
-                  setLoadedAvatars(prev => new Set(prev).add(src));
-                };
-                imageLoader.onerror = () => {
-                  setFailedAvatars(prev => new Set(prev).add(src));
-                };
-                imageLoader.src = src;
-                observerRef.current?.unobserve(img);
-              }
-            }
-          });
-        },
-        { rootMargin: '100px' } // Aumentado para carregar antes de aparecer na tela
-      );
-
-      // Observa todas as imagens com data-src
-      const images = document.querySelectorAll('img[data-src]');
-      images.forEach(img => {
-        if (img.dataset.src && !loadedAvatars.has(img.dataset.src) && !failedAvatars.has(img.dataset.src)) {
-          observerRef.current?.observe(img);
-        }
-      });
-    }, 200);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [isOpen, avatars, loadedAvatars, failedAvatars]);
+  // Removido Intersection Observer - usando loading="lazy" nativo do navegador que é mais confiável
 
   const handleSelectAvatar = useCallback(async (avatarUrl: string) => {
     if (!user) {
@@ -244,7 +192,7 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
               const isCurrent = currentAvatar === avatar.url;
               const isLoaded = loadedAvatars.has(avatar.url);
               const hasFailed = failedAvatars.has(avatar.url);
-              const shouldPreload = index < 8; // Primeiras 8 carregam imediatamente
+              const shouldPreload = index < 12; // Primeiras 12 carregam imediatamente
               
               return (
                 <button
@@ -271,50 +219,44 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
                 >
                   {/* Loading state */}
                   {!isLoaded && !hasFailed && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-700/50 animate-pulse">
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-700/50 animate-pulse z-10">
                       <div className="w-6 h-6 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                   )}
                   
                   {/* Error state */}
                   {hasFailed && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-800/80">
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-800/80 z-10">
                       <span className="text-slate-500 text-xs">?</span>
                     </div>
                   )}
                   
-                  {/* Image - sempre renderiza, mas controla visibilidade */}
+                  {/* Image - simplificado: sempre tenta carregar */}
                   <img
-                    src={shouldPreload || isLoaded ? avatar.url : undefined}
-                    data-src={!shouldPreload && !isLoaded ? avatar.url : undefined}
+                    src={avatar.url}
                     alt={`Avatar ${index + 1}`}
                     className={`w-full h-full object-cover transition-opacity duration-300 ${
-                      isLoaded || shouldPreload ? 'opacity-100' : 'opacity-0'
+                      isLoaded ? 'opacity-100' : 'opacity-0'
                     } ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
                     loading={shouldPreload ? 'eager' : 'lazy'}
                     onLoad={(e) => {
                       const img = e.currentTarget;
-                      const src = img.src || img.dataset.src;
-                      if (src) {
-                        setLoadedAvatars(prev => new Set(prev).add(src));
-                        img.classList.remove('opacity-0');
-                        img.classList.add('opacity-100');
-                      }
+                      setLoadedAvatars(prev => new Set(prev).add(avatar.url));
+                      img.classList.remove('opacity-0');
+                      img.classList.add('opacity-100');
                     }}
-                    onError={(e) => {
-                      const img = e.currentTarget;
-                      const src = img.src || img.dataset.src || avatar.url;
-                      setFailedAvatars(prev => new Set(prev).add(src));
+                    onError={() => {
+                      setFailedAvatars(prev => new Set(prev).add(avatar.url));
                     }}
                   />
                   
                   {isCurrent && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
+                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20 z-20">
                       <span className="text-blue-300 text-xs font-bold">✓</span>
                     </div>
                   )}
                   {isPremiumStyle && !isCurrent && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-20">
                       <span className="text-yellow-400 text-xs font-bold">⭐</span>
                     </div>
                   )}
