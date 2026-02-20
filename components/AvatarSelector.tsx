@@ -70,24 +70,67 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
     setFailedAvatars(new Set());
   }, [selectedStyle]);
 
-  // Preload das primeiras 12 imagens imediatamente (aumentado para melhor UX)
+  // Preload progressivo de todas as imagens com delay para evitar rate limiting
   useEffect(() => {
     if (!isOpen) return;
     
-    const preloadImages = avatars.slice(0, 12);
-    preloadImages.forEach(avatar => {
-      // Verifica se já está carregado
+    let cancelled = false;
+    let timeoutIds: NodeJS.Timeout[] = [];
+    
+    // Carrega todas as imagens progressivamente com pequenos delays
+    avatars.forEach((avatar, index) => {
+      // Verifica se já está carregado ou falhou
       if (loadedAvatars.has(avatar.url) || failedAvatars.has(avatar.url)) return;
       
-      const img = new Image();
-      img.onload = () => {
-        setLoadedAvatars(prev => new Set(prev).add(avatar.url));
-      };
-      img.onerror = () => {
-        setFailedAvatars(prev => new Set(prev).add(avatar.url));
-      };
-      img.src = avatar.url;
+      // Primeiras 8: carregam imediatamente
+      // Resto: carrega com delay progressivo (50ms entre cada)
+      const delay = index < 8 ? 0 : (index - 8) * 50;
+      
+      const timeoutId = setTimeout(() => {
+        if (cancelled) return;
+        
+        const img = new Image();
+        img.crossOrigin = 'anonymous'; // Permite CORS se necessário
+        
+        img.onload = () => {
+          if (!cancelled) {
+            setLoadedAvatars(prev => new Set(prev).add(avatar.url));
+          }
+        };
+        
+        img.onerror = () => {
+          if (!cancelled) {
+            // Retry após 1 segundo
+            setTimeout(() => {
+              if (!cancelled && !loadedAvatars.has(avatar.url)) {
+                const retryImg = new Image();
+                retryImg.crossOrigin = 'anonymous';
+                retryImg.onload = () => {
+                  if (!cancelled) {
+                    setLoadedAvatars(prev => new Set(prev).add(avatar.url));
+                  }
+                };
+                retryImg.onerror = () => {
+                  if (!cancelled) {
+                    setFailedAvatars(prev => new Set(prev).add(avatar.url));
+                  }
+                };
+                retryImg.src = avatar.url;
+              }
+            }, 1000);
+          }
+        };
+        
+        img.src = avatar.url;
+      }, delay);
+      
+      timeoutIds.push(timeoutId);
     });
+    
+    return () => {
+      cancelled = true;
+      timeoutIds.forEach(id => clearTimeout(id));
+    };
   }, [isOpen, avatars, loadedAvatars, failedAvatars]);
 
   // Removido Intersection Observer - usando loading="lazy" nativo do navegador que é mais confiável
@@ -231,24 +274,34 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
                     </div>
                   )}
                   
-                  {/* Image - simplificado: sempre tenta carregar */}
-                  <img
-                    src={avatar.url}
-                    alt={`Avatar ${index + 1}`}
-                    className={`w-full h-full object-cover transition-opacity duration-300 ${
-                      isLoaded ? 'opacity-100' : 'opacity-0'
-                    } ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
-                    loading={shouldPreload ? 'eager' : 'lazy'}
-                    onLoad={(e) => {
-                      const img = e.currentTarget;
-                      setLoadedAvatars(prev => new Set(prev).add(avatar.url));
-                      img.classList.remove('opacity-0');
-                      img.classList.add('opacity-100');
-                    }}
-                    onError={() => {
-                      setFailedAvatars(prev => new Set(prev).add(avatar.url));
-                    }}
-                  />
+                  {/* Image - sempre renderiza para garantir carregamento */}
+                  {isLoaded ? (
+                    <img
+                      src={avatar.url}
+                      alt={`Avatar ${index + 1}`}
+                      className={`w-full h-full object-cover transition-opacity duration-300 opacity-100 ${
+                        isPremiumStyle ? 'grayscale-[30%]' : ''
+                      }`}
+                    />
+                  ) : (
+                    <img
+                      src={avatar.url}
+                      alt={`Avatar ${index + 1}`}
+                      className={`w-full h-full object-cover transition-opacity duration-300 opacity-0 ${
+                        isPremiumStyle ? 'grayscale-[30%]' : ''
+                      }`}
+                      loading="lazy"
+                      onLoad={(e) => {
+                        const img = e.currentTarget;
+                        setLoadedAvatars(prev => new Set(prev).add(avatar.url));
+                        img.classList.remove('opacity-0');
+                        img.classList.add('opacity-100');
+                      }}
+                      onError={() => {
+                        setFailedAvatars(prev => new Set(prev).add(avatar.url));
+                      }}
+                    />
+                  )}
                   
                   {isCurrent && (
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20 z-20">
