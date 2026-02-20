@@ -1,0 +1,39 @@
+{
+  "backgroundImageSrc": null,
+  "options": {
+    "janela": false,
+    "luminaria": false,
+    "quadros": false,
+    "tomada": false,
+    "chaoLinhas": false,
+    "sombras": false,
+    "brilhoChao": false
+  },
+  "colors": {
+    "parede": "#E8B4B4",
+    "paredeSombra": "#D4A0A0",
+    "chao": "#7A8B99",
+    "chaoClaro": "#8B9CAA",
+    "chaoEscuro": "#697A88",
+    "teto": "#C49494",
+    "janelaFrame": "#8B7355",
+    "janelaVidro": "#B8D4E8",
+    "cortina": "#6B8E9F",
+    "cortinaEscura": "#5A7D8E",
+    "cortinaClara": "#7C9FB0",
+    "luminaria": "#4A4A4A",
+    "lampada": "#FFF8DC",
+    "lampadaBrilho": "#FFFACD",
+    "quadro1": "#9FB4CC",
+    "quadro2": "#CC9F9F",
+    "moldura": "#8B7355",
+    "tomada": "#D4C4B4",
+    "camaCabeceira": "#8B7355",
+    "camaColchao": "#D4C4B4",
+    "camaLencol": "#FAF0E6",
+    "camaSombra": "#697A88"
+  },
+  "items": [],
+  "roomPresetId": null,
+  "fullRoomImageSrc": "/game/casa/quarto_firefly_5.png"
+}

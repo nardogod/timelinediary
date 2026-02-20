@@ -727,3 +727,23 @@ html {
   );
   background-size: 1000px 100%;
 }
+
+/* Pet imagem única (ex: Sereia): flutuação suave */
+@keyframes pet-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.pet-float {
+  animation: pet-float 2.5s ease-in-out infinite;
+}
+
+/* Fotos de perfil / avatares: sem fundo cinza; transparência visível (sem quadriculado forçado) */
+.game-profile-avatar img,
+.game-profile-avatar-picker button img {
+  background: transparent !important;
+}

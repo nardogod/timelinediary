@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { use, useState, useEffect, useMemo, useCallback } from 'react';
 import { MockEvent } from '@/lib/mockData';
 import Timeline from '@/components/Timeline';
 import ZoomControls from '@/components/ZoomControls';
@@ -27,22 +27,24 @@ import { getSettingsByUserId, loadSettingsFromStorage, DEFAULT_SETTINGS } from '
 import { useSwipe } from '@/hooks/useSwipe';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { trackEvent } from '@/lib/analytics';
+import MeuMundoButton from '@/components/MeuMundoButton';
 
 type ApiUser = { id: string; username: string; name: string; avatar: string | null };
 type ApiEvent = { id: string; user_id: string; title: string; date: string; end_date: string | null; type: string; link: string | null; folder_id: string | null; task_id?: string | null };
 type ApiFolder = { id: string; user_id: string; name: string; color: string; created_at: string };
 
 interface PageProps {
-  params: Promise<{
-    username: string;
-  }>;
+  params: Promise<{ username: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default function UserTimelinePage({ params }: PageProps) {
+export default function UserTimelinePage(props: PageProps) {
+  const resolvedParams = use(props.params);
+  const resolvedSearchParams = use(props.searchParams ?? Promise.resolve({}));
   const { user: currentUser } = useAuth();
   const router = useRouter();
   const { toasts, showToast, closeToast } = useToast();
-  const [username, setUsername] = useState<string>('');
+  const [username, setUsername] = useState<string>(resolvedParams.username ?? '');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -203,14 +205,9 @@ export default function UserTimelinePage({ params }: PageProps) {
   }, [username, router]);
 
   useEffect(() => {
-    params.then(({ username }) => {
-      setUsername(username);
-      setIsLoading(false);
-    }).catch((error) => {
-      console.error('Error loading user:', error);
-      setIsLoading(false);
-    });
-  }, [params]);
+    setUsername(resolvedParams.username ?? '');
+    setIsLoading(false);
+  }, [resolvedParams.username]);
 
   useEffect(() => {
     if (username) {
@@ -661,7 +658,8 @@ export default function UserTimelinePage({ params }: PageProps) {
 
             {/* Legenda */}
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2 sm:gap-4 justify-center text-xs">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 justify-center text-xs">
+                <MeuMundoButton />
                 <div className="flex items-center gap-1.5">
                   <div 
                     className="w-2.5 h-2.5 rounded-full" 
