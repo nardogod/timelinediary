@@ -233,9 +233,9 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
         zIndex: isExpanded ? 100 : 50 + layer,
       }}
     >
-      {/* Ponto na linha */}
+      {/* Ponto na linha - centralizado exatamente na linha */}
       <div
-        className="absolute w-3 h-3 sm:w-4 sm:h-4 rounded-full border-2 sm:border-4 border-slate-900 z-10 transition-all duration-300 hover:scale-125"
+        className="absolute w-3 h-3 sm:w-4 sm:h-4 rounded-full border-2 sm:border-4 border-slate-900 z-10 transition-all duration-300 hover:scale-125 pointer-events-none"
         style={{
           backgroundColor: color,
           left: '50%',
@@ -248,9 +248,15 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
       <div
         className="absolute left-1/2 w-0.5 -translate-x-1/2 transition-all duration-300"
         style={{
-          height: '50px',
+          // Card está a 70px do centro do container
+          // Ponto está no centro (50% do container)
+          // Linha precisa ir do ponto até o card, mas não passar além do ponto
+          // Quando isTop: linha começa logo após o ponto e vai até o card
+          // Quando !isTop: linha começa logo após o ponto e vai até o card
+          // Altura: 70px - metade da altura do ponto (para não passar além)
+          height: `${70 - 2 + (layer > 0 ? layer * 10 : 0)}px`,
           backgroundColor: color,
-          [isTop ? 'bottom' : 'top']: '0',
+          [isTop ? 'bottom' : 'top']: '2px', // Começa 2px após o centro para não passar pelo ponto
         }}
       ></div>
 

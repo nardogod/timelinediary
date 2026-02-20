@@ -456,10 +456,17 @@ export default function UserTimelinePage({ params }: PageProps) {
     showToast('Filtros removidos', 'info');
   }, [allEvents, showToast]);
 
-  // Swipe gesture para fechar dashboard
+  // Swipe gesture para fechar dashboard - melhorado para evitar fechamento acidental
   const swipeHandlers = useSwipe({
-    onSwipeDown: () => dashboardOpen && setDashboardOpen(false),
-    threshold: 100
+    onSwipeDown: () => {
+      // Só fecha se o dashboard estiver aberto
+      if (dashboardOpen) {
+        setDashboardOpen(false);
+      }
+    },
+    threshold: 120, // Threshold aumentado para evitar fechamento acidental
+    velocity: 0.4, // Requer velocidade mínima maior
+    preventDefault: true
   });
 
   // Navegação por teclado
@@ -632,11 +639,13 @@ export default function UserTimelinePage({ params }: PageProps) {
               <FolderTabs
                 key={foldersKey}
                 folders={folders}
-                events={allEvents}
+                events={filterActive ? monthEvents : allEvents}
                 selectedFolder={selectedFolder}
                 onSelectFolder={setSelectedFolder}
                 completedTasksCount={completedTasksCount}
                 totalCompletedTasks={totalCompletedTasks}
+                filterActive={filterActive}
+                visibleEvents={filteredEvents}
                 onOpenNotes={(folderId, folderName) => {
                   // Só permite abrir notas se for o dono da conta
                   if (currentUser && user && currentUser.id === user.id) {
@@ -704,7 +713,8 @@ export default function UserTimelinePage({ params }: PageProps) {
           {/* Timeline */}
           <div className={`overflow-y-auto overflow-x-hidden ${dashboardOpen ? 'flex-1 min-h-0' : 'flex-1'}`}>
             <Timeline 
-              events={filteredEvents} 
+              events={filteredEvents}
+              allEvents={allEvents}
               settings={settings}
               themeId={settings?.themeId}
               onResetFilters={handleResetFilters}

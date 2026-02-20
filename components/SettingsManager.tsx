@@ -270,33 +270,46 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                   <label className="text-slate-300 text-xs font-medium mb-3 block">Personalizar Cores do Fundo</label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-slate-400 text-[10px] mb-1.5 block">
+                      <label className="text-slate-400 text-[11px] mb-2 block">
                         {settings.animatedBackground === 'bubbles' ? 'Cor 1 (Top Left)' : 
                          settings.animatedBackground === 'waves' ? 'Cor 1' : 'Cor 1 (20% 20%)'}
                       </label>
-                      {/* Grid de cores */}
-                      <div className="grid grid-cols-5 gap-1.5 mb-2">
-                        {PRESET_COLORS.animatedColors.map((color) => (
-                          <button
-                            key={color.value}
-                            onClick={() => handleChange('animatedBackgroundColors', { 
+                      {/* Cores fixas: Branco e Azul */}
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => {
+                            const rgba = 'rgba(255, 255, 255, 0.4)';
+                            handleChange('animatedBackgroundColors', { 
                               ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
-                              color1: color.value 
-                            })}
-                            className={`w-8 h-8 rounded border-2 transition-all ${
-                              (settings.animatedBackgroundColors?.color1 || DEFAULT_SETTINGS.animatedBackgroundColors.color1) === color.value ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
-                            }`}
-                            style={{ backgroundColor: color.value }}
-                            title={color.name}
-                          />
-                        ))}
+                              color1: rgba 
+                            });
+                          }}
+                          className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                            (settings.animatedBackgroundColors?.color1 || DEFAULT_SETTINGS.animatedBackgroundColors.color1) === 'rgba(255, 255, 255, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                          }`}
+                          style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+                          title="Branco"
+                        />
+                        <button
+                          onClick={() => {
+                            const rgba = 'rgba(59, 130, 246, 0.4)';
+                            handleChange('animatedBackgroundColors', { 
+                              ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
+                              color1: rgba 
+                            });
+                          }}
+                          className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                            (settings.animatedBackgroundColors?.color1 || DEFAULT_SETTINGS.animatedBackgroundColors.color1) === 'rgba(59, 130, 246, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                          }`}
+                          style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)' }}
+                          title="Azul"
+                        />
                       </div>
                       {/* Color picker */}
                       <input
                         type="color"
                         value={(() => {
                           const currentColor = settings.animatedBackgroundColors?.color1 || DEFAULT_SETTINGS.animatedBackgroundColors.color1;
-                          // Extrai hex de rgba se necessário
                           if (currentColor.startsWith('rgba')) {
                             const match = currentColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
                             if (match) {
@@ -310,7 +323,6 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                         })()}
                         onChange={(e) => {
                           const hex = e.target.value;
-                          // Converte hex para rgba com opacidade
                           const r = parseInt(hex.slice(1, 3), 16);
                           const g = parseInt(hex.slice(3, 5), 16);
                           const b = parseInt(hex.slice(5, 7), 16);
@@ -320,31 +332,45 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                             color1: rgba 
                           });
                         }}
-                        className="w-full h-8 rounded cursor-pointer"
+                        className="w-full h-12 min-h-[48px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
                         title="Escolher cor personalizada"
                       />
                     </div>
                     <div>
-                      <label className="text-slate-400 text-[10px] mb-1.5 block">
+                      <label className="text-slate-400 text-[11px] mb-2 block">
                         {settings.animatedBackground === 'bubbles' ? 'Cor 2 (Bottom Right)' : 
                          settings.animatedBackground === 'waves' ? 'Cor 2' : 'Cor 2 (80% 80%)'}
                       </label>
-                      {/* Grid de cores */}
-                      <div className="grid grid-cols-5 gap-1.5 mb-2">
-                        {PRESET_COLORS.animatedColors.map((color) => (
-                          <button
-                            key={color.value}
-                            onClick={() => handleChange('animatedBackgroundColors', { 
+                      {/* Cores fixas: Branco e Azul */}
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => {
+                            const rgba = 'rgba(255, 255, 255, 0.4)';
+                            handleChange('animatedBackgroundColors', { 
                               ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
-                              color2: color.value 
-                            })}
-                            className={`w-8 h-8 rounded border-2 transition-all ${
-                              (settings.animatedBackgroundColors?.color2 || DEFAULT_SETTINGS.animatedBackgroundColors.color2) === color.value ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
-                            }`}
-                            style={{ backgroundColor: color.value }}
-                            title={color.name}
-                          />
-                        ))}
+                              color2: rgba 
+                            });
+                          }}
+                          className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                            (settings.animatedBackgroundColors?.color2 || DEFAULT_SETTINGS.animatedBackgroundColors.color2) === 'rgba(255, 255, 255, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                          }`}
+                          style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+                          title="Branco"
+                        />
+                        <button
+                          onClick={() => {
+                            const rgba = 'rgba(59, 130, 246, 0.4)';
+                            handleChange('animatedBackgroundColors', { 
+                              ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
+                              color2: rgba 
+                            });
+                          }}
+                          className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                            (settings.animatedBackgroundColors?.color2 || DEFAULT_SETTINGS.animatedBackgroundColors.color2) === 'rgba(59, 130, 246, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                          }`}
+                          style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)' }}
+                          title="Azul"
+                        />
                       </div>
                       {/* Color picker */}
                       <input
@@ -373,34 +399,46 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                             color2: rgba 
                           });
                         }}
-                        className="w-full h-8 rounded cursor-pointer"
+                        className="w-full h-12 min-h-[48px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
                         title="Escolher cor personalizada"
                       />
                     </div>
                     {(settings.animatedBackground === 'waves' || settings.animatedBackground === 'particles') && (
                       <>
                         <div>
-                          <label className="text-slate-400 text-[10px] mb-1.5 block">
+                          <label className="text-slate-400 text-[11px] mb-2 block">
                             {settings.animatedBackground === 'waves' ? 'Cor 3' : 'Cor 3 (50% 50%)'}
                           </label>
-                          {/* Grid de cores */}
-                          <div className="grid grid-cols-5 gap-1.5 mb-2">
-                            {PRESET_COLORS.animatedColors.map((color) => (
-                              <button
-                                key={color.value}
-                                onClick={() => handleChange('animatedBackgroundColors', { 
+                          <div className="flex gap-2 mb-2">
+                            <button
+                              onClick={() => {
+                                const rgba = 'rgba(255, 255, 255, 0.4)';
+                                handleChange('animatedBackgroundColors', { 
                                   ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
-                                  color3: color.value 
-                                })}
-                                className={`w-8 h-8 rounded border-2 transition-all ${
-                                  (settings.animatedBackgroundColors?.color3 || DEFAULT_SETTINGS.animatedBackgroundColors.color3) === color.value ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
-                                }`}
-                                style={{ backgroundColor: color.value }}
-                                title={color.name}
-                              />
-                            ))}
+                                  color3: rgba 
+                                });
+                              }}
+                              className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                (settings.animatedBackgroundColors?.color3 || DEFAULT_SETTINGS.animatedBackgroundColors.color3) === 'rgba(255, 255, 255, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                              }`}
+                              style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+                              title="Branco"
+                            />
+                            <button
+                              onClick={() => {
+                                const rgba = 'rgba(59, 130, 246, 0.4)';
+                                handleChange('animatedBackgroundColors', { 
+                                  ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
+                                  color3: rgba 
+                                });
+                              }}
+                              className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                (settings.animatedBackgroundColors?.color3 || DEFAULT_SETTINGS.animatedBackgroundColors.color3) === 'rgba(59, 130, 246, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                              }`}
+                              style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)' }}
+                              title="Azul"
+                            />
                           </div>
-                          {/* Color picker */}
                           <input
                             type="color"
                             value={(() => {
@@ -427,31 +465,43 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                                 color3: rgba 
                               });
                             }}
-                            className="w-full h-8 rounded cursor-pointer"
+                            className="w-full h-12 min-h-[48px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
                             title="Escolher cor personalizada"
                           />
                         </div>
                         {settings.animatedBackground === 'particles' && (
                           <div>
-                            <label className="text-slate-400 text-[10px] mb-1.5 block">Cor 4 (30% 70%)</label>
-                            {/* Grid de cores */}
-                            <div className="grid grid-cols-5 gap-1.5 mb-2">
-                              {PRESET_COLORS.animatedColors.map((color) => (
-                                <button
-                                  key={color.value}
-                                  onClick={() => handleChange('animatedBackgroundColors', { 
+                            <label className="text-slate-400 text-[11px] mb-2 block">Cor 4 (30% 70%)</label>
+                            <div className="flex gap-2 mb-2">
+                              <button
+                                onClick={() => {
+                                  const rgba = 'rgba(255, 255, 255, 0.4)';
+                                  handleChange('animatedBackgroundColors', { 
                                     ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
-                                    color4: color.value 
-                                  })}
-                                  className={`w-8 h-8 rounded border-2 transition-all ${
-                                    (settings.animatedBackgroundColors?.color4 || DEFAULT_SETTINGS.animatedBackgroundColors.color4) === color.value ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
-                                  }`}
-                                  style={{ backgroundColor: color.value }}
-                                  title={color.name}
-                                />
-                              ))}
+                                    color4: rgba 
+                                  });
+                                }}
+                                className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                  (settings.animatedBackgroundColors?.color4 || DEFAULT_SETTINGS.animatedBackgroundColors.color4) === 'rgba(255, 255, 255, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                                }`}
+                                style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+                                title="Branco"
+                              />
+                              <button
+                                onClick={() => {
+                                  const rgba = 'rgba(59, 130, 246, 0.4)';
+                                  handleChange('animatedBackgroundColors', { 
+                                    ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
+                                    color4: rgba 
+                                  });
+                                }}
+                                className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                  (settings.animatedBackgroundColors?.color4 || DEFAULT_SETTINGS.animatedBackgroundColors.color4) === 'rgba(59, 130, 246, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                                }`}
+                                style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)' }}
+                                title="Azul"
+                              />
                             </div>
-                            {/* Color picker */}
                             <input
                               type="color"
                               value={(() => {
@@ -478,7 +528,7 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                                   color4: rgba 
                                 });
                               }}
-                              className="w-full h-8 rounded cursor-pointer"
+                              className="w-full h-12 min-h-[48px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
                               title="Escolher cor personalizada"
                             />
                           </div>
@@ -488,25 +538,37 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                     {settings.animatedBackground === 'bubbles' && (
                       <>
                         <div>
-                          <label className="text-slate-400 text-[10px] mb-1.5 block">Cor 3 (Top Right)</label>
-                          {/* Grid de cores */}
-                          <div className="grid grid-cols-5 gap-1.5 mb-2">
-                            {PRESET_COLORS.animatedColors.map((color) => (
-                              <button
-                                key={color.value}
-                                onClick={() => handleChange('animatedBackgroundColors', { 
+                          <label className="text-slate-400 text-[11px] mb-2 block">Cor 3 (Top Right)</label>
+                          <div className="flex gap-2 mb-2">
+                            <button
+                              onClick={() => {
+                                const rgba = 'rgba(255, 255, 255, 0.4)';
+                                handleChange('animatedBackgroundColors', { 
                                   ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
-                                  color3: color.value 
-                                })}
-                                className={`w-8 h-8 rounded border-2 transition-all ${
-                                  (settings.animatedBackgroundColors?.color3 || DEFAULT_SETTINGS.animatedBackgroundColors.color3) === color.value ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
-                                }`}
-                                style={{ backgroundColor: color.value }}
-                                title={color.name}
-                              />
-                            ))}
+                                  color3: rgba 
+                                });
+                              }}
+                              className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                (settings.animatedBackgroundColors?.color3 || DEFAULT_SETTINGS.animatedBackgroundColors.color3) === 'rgba(255, 255, 255, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                              }`}
+                              style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+                              title="Branco"
+                            />
+                            <button
+                              onClick={() => {
+                                const rgba = 'rgba(59, 130, 246, 0.4)';
+                                handleChange('animatedBackgroundColors', { 
+                                  ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
+                                  color3: rgba 
+                                });
+                              }}
+                              className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                (settings.animatedBackgroundColors?.color3 || DEFAULT_SETTINGS.animatedBackgroundColors.color3) === 'rgba(59, 130, 246, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                              }`}
+                              style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)' }}
+                              title="Azul"
+                            />
                           </div>
-                          {/* Color picker */}
                           <input
                             type="color"
                             value={(() => {
@@ -533,30 +595,42 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                                 color3: rgba 
                               });
                             }}
-                            className="w-full h-8 rounded cursor-pointer"
+                            className="w-full h-12 min-h-[48px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
                             title="Escolher cor personalizada"
                           />
                         </div>
                         <div>
-                          <label className="text-slate-400 text-[10px] mb-1.5 block">Cor 4 (Bottom Left)</label>
-                          {/* Grid de cores */}
-                          <div className="grid grid-cols-5 gap-1.5 mb-2">
-                            {PRESET_COLORS.animatedColors.map((color) => (
-                              <button
-                                key={color.value}
-                                onClick={() => handleChange('animatedBackgroundColors', { 
+                          <label className="text-slate-400 text-[11px] mb-2 block">Cor 4 (Bottom Left)</label>
+                          <div className="flex gap-2 mb-2">
+                            <button
+                              onClick={() => {
+                                const rgba = 'rgba(255, 255, 255, 0.4)';
+                                handleChange('animatedBackgroundColors', { 
                                   ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
-                                  color4: color.value 
-                                })}
-                                className={`w-8 h-8 rounded border-2 transition-all ${
-                                  (settings.animatedBackgroundColors?.color4 || DEFAULT_SETTINGS.animatedBackgroundColors.color4) === color.value ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
-                                }`}
-                                style={{ backgroundColor: color.value }}
-                                title={color.name}
-                              />
-                            ))}
+                                  color4: rgba 
+                                });
+                              }}
+                              className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                (settings.animatedBackgroundColors?.color4 || DEFAULT_SETTINGS.animatedBackgroundColors.color4) === 'rgba(255, 255, 255, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                              }`}
+                              style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)' }}
+                              title="Branco"
+                            />
+                            <button
+                              onClick={() => {
+                                const rgba = 'rgba(59, 130, 246, 0.4)';
+                                handleChange('animatedBackgroundColors', { 
+                                  ...(settings.animatedBackgroundColors || DEFAULT_SETTINGS.animatedBackgroundColors), 
+                                  color4: rgba 
+                                });
+                              }}
+                              className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-lg border-2 transition-all touch-manipulation ${
+                                (settings.animatedBackgroundColors?.color4 || DEFAULT_SETTINGS.animatedBackgroundColors.color4) === 'rgba(59, 130, 246, 0.4)' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                              }`}
+                              style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)' }}
+                              title="Azul"
+                            />
                           </div>
-                          {/* Color picker */}
                           <input
                             type="color"
                             value={(() => {
@@ -583,7 +657,7 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
                                 color4: rgba 
                               });
                             }}
-                            className="w-full h-8 rounded cursor-pointer"
+                            className="w-full h-12 min-h-[48px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
                             title="Escolher cor personalizada"
                           />
                         </div>
@@ -600,18 +674,61 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
           <div className="space-y-4">
             <div>
               <label className="text-slate-300 text-xs font-medium mb-2 block">Cor da Linha</label>
-              <div className="flex gap-2 flex-wrap">
-                {PRESET_COLORS.timelineLines.map((line) => (
-                  <button
-                    key={line.value}
-                    onClick={() => handleChange('timelineLineColor', line.value)}
-                    className={`w-10 h-10 rounded border-2 transition-all ${
-                      settings.timelineLineColor === line.value ? 'border-white scale-110' : 'border-slate-600'
-                    }`}
-                    style={{ backgroundColor: line.value }}
-                    title={line.name}
+              {/* Cores fixas: Branco e Azul */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => handleChange('timelineLineColor', '#ffffff')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.timelineLineColor === '#ffffff' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#ffffff' }}
+                  title="Branco"
+                  aria-label="Cor branca"
+                />
+                <button
+                  onClick={() => handleChange('timelineLineColor', '#3b82f6')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.timelineLineColor === '#3b82f6' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#3b82f6' }}
+                  title="Azul"
+                  aria-label="Cor azul"
+                />
+              </div>
+              {/* Color picker livre */}
+              <div className="space-y-2">
+                <label className="text-slate-400 text-[11px] block">Ou escolha uma cor personalizada:</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={(() => {
+                      const current = settings.timelineLineColor;
+                      // Se já é branco ou azul, mostra a cor atual mesmo assim
+                      if (current === '#ffffff' || current === '#3b82f6') return current;
+                      // Converte rgba para hex se necessário
+                      if (current.startsWith('rgba')) {
+                        const match = current.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                        if (match) {
+                          const r = parseInt(match[1]).toString(16).padStart(2, '0');
+                          const g = parseInt(match[2]).toString(16).padStart(2, '0');
+                          const b = parseInt(match[3]).toString(16).padStart(2, '0');
+                          return `#${r}${g}${b}`;
+                        }
+                      }
+                      return current.startsWith('#') ? current : '#475569';
+                    })()}
+                    onChange={(e) => handleChange('timelineLineColor', e.target.value)}
+                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
+                    title="Escolher cor personalizada"
                   />
-                ))}
+                  <div className="flex-1">
+                    <div className="text-slate-300 text-xs mb-1">Cor atual:</div>
+                    <div 
+                      className="w-full h-8 rounded border border-slate-600"
+                      style={{ backgroundColor: settings.timelineLineColor }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -649,55 +766,160 @@ function SettingsManager({ userId, onSettingsChange }: SettingsManagerProps) {
         )}
 
         {activeTab === 'events' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
+            {/* Cor - Simples */}
             <div>
               <label className="text-slate-300 text-xs font-medium mb-2 block">Cor - Simples</label>
-              <div className="flex gap-2 flex-wrap">
-                {PRESET_COLORS.eventColors.simple.map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => handleChange('eventSimpleColor', color.value)}
-                    className={`w-10 h-10 rounded border-2 transition-all ${
-                      settings.eventSimpleColor === color.value ? 'border-white scale-110' : 'border-slate-600'
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => handleChange('eventSimpleColor', '#ffffff')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.eventSimpleColor === '#ffffff' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#ffffff' }}
+                  title="Branco"
+                />
+                <button
+                  onClick={() => handleChange('eventSimpleColor', '#3b82f6')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.eventSimpleColor === '#3b82f6' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#3b82f6' }}
+                  title="Azul"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={(() => {
+                    const current = settings.eventSimpleColor;
+                    if (current === '#ffffff' || current === '#3b82f6') return current;
+                    if (current.startsWith('rgba')) {
+                      const match = current.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                      if (match) {
+                        const r = parseInt(match[1]).toString(16).padStart(2, '0');
+                        const g = parseInt(match[2]).toString(16).padStart(2, '0');
+                        const b = parseInt(match[3]).toString(16).padStart(2, '0');
+                        return `#${r}${g}${b}`;
+                      }
+                    }
+                    return current.startsWith('#') ? current : '#10b981';
+                  })()}
+                  onChange={(e) => handleChange('eventSimpleColor', e.target.value)}
+                  className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
+                  title="Escolher cor personalizada"
+                />
+                <div className="flex-1">
+                  <div className="text-slate-400 text-[11px] mb-1">Cor personalizada:</div>
+                  <div 
+                    className="w-full h-8 rounded border border-slate-600"
+                    style={{ backgroundColor: settings.eventSimpleColor }}
                   />
-                ))}
+                </div>
               </div>
             </div>
 
+            {/* Cor - Médio */}
             <div>
               <label className="text-slate-300 text-xs font-medium mb-2 block">Cor - Médio</label>
-              <div className="flex gap-2 flex-wrap">
-                {PRESET_COLORS.eventColors.medium.map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => handleChange('eventMediumColor', color.value)}
-                    className={`w-10 h-10 rounded border-2 transition-all ${
-                      settings.eventMediumColor === color.value ? 'border-white scale-110' : 'border-slate-600'
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => handleChange('eventMediumColor', '#ffffff')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.eventMediumColor === '#ffffff' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#ffffff' }}
+                  title="Branco"
+                />
+                <button
+                  onClick={() => handleChange('eventMediumColor', '#3b82f6')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.eventMediumColor === '#3b82f6' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#3b82f6' }}
+                  title="Azul"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={(() => {
+                    const current = settings.eventMediumColor;
+                    if (current === '#ffffff' || current === '#3b82f6') return current;
+                    if (current.startsWith('rgba')) {
+                      const match = current.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                      if (match) {
+                        const r = parseInt(match[1]).toString(16).padStart(2, '0');
+                        const g = parseInt(match[2]).toString(16).padStart(2, '0');
+                        const b = parseInt(match[3]).toString(16).padStart(2, '0');
+                        return `#${r}${g}${b}`;
+                      }
+                    }
+                    return current.startsWith('#') ? current : '#f59e0b';
+                  })()}
+                  onChange={(e) => handleChange('eventMediumColor', e.target.value)}
+                  className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
+                  title="Escolher cor personalizada"
+                />
+                <div className="flex-1">
+                  <div className="text-slate-400 text-[11px] mb-1">Cor personalizada:</div>
+                  <div 
+                    className="w-full h-8 rounded border border-slate-600"
+                    style={{ backgroundColor: settings.eventMediumColor }}
                   />
-                ))}
+                </div>
               </div>
             </div>
 
+            {/* Cor - Importante */}
             <div>
               <label className="text-slate-300 text-xs font-medium mb-2 block">Cor - Importante</label>
-              <div className="flex gap-2 flex-wrap">
-                {PRESET_COLORS.eventColors.important.map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => handleChange('eventImportantColor', color.value)}
-                    className={`w-10 h-10 rounded border-2 transition-all ${
-                      settings.eventImportantColor === color.value ? 'border-white scale-110' : 'border-slate-600'
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => handleChange('eventImportantColor', '#ffffff')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.eventImportantColor === '#ffffff' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#ffffff' }}
+                  title="Branco"
+                />
+                <button
+                  onClick={() => handleChange('eventImportantColor', '#3b82f6')}
+                  className={`w-12 h-12 min-w-[48px] min-h-[48px] rounded-lg border-2 transition-all touch-manipulation ${
+                    settings.eventImportantColor === '#3b82f6' ? 'border-white scale-110 ring-2 ring-white' : 'border-slate-600'
+                  }`}
+                  style={{ backgroundColor: '#3b82f6' }}
+                  title="Azul"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={(() => {
+                    const current = settings.eventImportantColor;
+                    if (current === '#ffffff' || current === '#3b82f6') return current;
+                    if (current.startsWith('rgba')) {
+                      const match = current.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                      if (match) {
+                        const r = parseInt(match[1]).toString(16).padStart(2, '0');
+                        const g = parseInt(match[2]).toString(16).padStart(2, '0');
+                        const b = parseInt(match[3]).toString(16).padStart(2, '0');
+                        return `#${r}${g}${b}`;
+                      }
+                    }
+                    return current.startsWith('#') ? current : '#ef4444';
+                  })()}
+                  onChange={(e) => handleChange('eventImportantColor', e.target.value)}
+                  className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-lg border-2 border-slate-600 cursor-pointer touch-manipulation"
+                  title="Escolher cor personalizada"
+                />
+                <div className="flex-1">
+                  <div className="text-slate-400 text-[11px] mb-1">Cor personalizada:</div>
+                  <div 
+                    className="w-full h-8 rounded border border-slate-600"
+                    style={{ backgroundColor: settings.eventImportantColor }}
                   />
-                ))}
+                </div>
               </div>
             </div>
           </div>

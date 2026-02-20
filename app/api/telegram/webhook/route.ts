@@ -7,10 +7,11 @@ import {
   validateAndUseToken,
 } from '@/lib/db/telegram';
 import { getBotState, setBotState, clearBotState, type BotStep, type BotStatePayload } from '@/lib/db/telegram-state';
-import { getEventsByUserId, createEvent } from '@/lib/db/events';
+import { getEventsByUserId, createEvent, createMultipleEvents } from '@/lib/db/events';
 import { getFoldersByUserId } from '@/lib/db/folders';
 import { parseDate } from '@/lib/telegram-parser';
 import { validateEvent, sanitizeTitle, sanitizeLink, validateLink } from '@/lib/validators';
+import { generateRecurringDates, dayNameToNumber, DayOfWeek, dayNumberToName } from '@/lib/recurringEvents';
 
 function validateWebhook(request: NextRequest): boolean {
   const secret = request.headers.get('x-telegram-bot-api-secret-token');
@@ -307,11 +308,11 @@ export async function POST(request: NextRequest) {
 
       if (state.step === 'confirm_name') {
         if (isSim(lower)) {
-          await setBotState(telegramId, 'ask_date', { title: state.payload.title });
+          await setBotState(telegramId, 'ask_is_recurring', { title: state.payload.title });
           await bot.api.sendMessage(
             chatId,
-            'Qual a data? (Pode ser algo que você já fez ou que vai fazer)\n\nToque em um botão ou digite: hoje, amanhã, 20/02/2026',
-            { reply_markup: KEYBOARD_DATA_RAPIDA }
+            'Este evento se repete durante o mês?\n\nExemplo: Curso toda segunda e quarta-feira de fevereiro',
+            { reply_markup: KEYBOARD_SIM_NAO }
           );
         } else if (isNao(lower)) {
           await clearBotState(telegramId);
@@ -323,6 +324,86 @@ export async function POST(request: NextRequest) {
             reply_markup: KEYBOARD_SIM_NAO,
           });
         }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_is_recurring') {
+        if (isSim(lower)) {
+          const now = new Date();
+          await setBotState(telegramId, 'ask_recurring_month', {
+            title: state.payload.title,
+            is_recurring: true,
+            recurring_year: now.getFullYear(),
+          });
+          await bot.api.sendMessage(
+            chatId,
+            `Qual mês? (Digite o número: 1=Janeiro, 2=Fevereiro, ..., 12=Dezembro)\n\nAno: ${now.getFullYear()}`,
+            { reply_markup: REMOVE_KEYBOARD }
+          );
+        } else if (isNao(lower)) {
+          await setBotState(telegramId, 'ask_date', { title: state.payload.title });
+          await bot.api.sendMessage(
+            chatId,
+            'Qual a data? (Pode ser algo que você já fez ou que vai fazer)\n\nToque em um botão ou digite: hoje, amanhã, 20/02/2026',
+            { reply_markup: KEYBOARD_DATA_RAPIDA }
+          );
+        } else {
+          await bot.api.sendMessage(chatId, 'Toque em um botão:', { reply_markup: KEYBOARD_SIM_NAO });
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_recurring_month') {
+        const month = parseInt(trimmed);
+        if (isNaN(month) || month < 1 || month > 12) {
+          await bot.api.sendMessage(chatId, 'Por favor, digite um número de 1 a 12 (1=Janeiro, 12=Dezembro)');
+          return NextResponse.json({ ok: true });
+        }
+        await setBotState(telegramId, 'ask_recurring_days', {
+          title: state.payload.title,
+          is_recurring: true,
+          recurring_year: state.payload.recurring_year || new Date().getFullYear(),
+          recurring_month: month,
+        });
+        await bot.api.sendMessage(
+          chatId,
+          'Quais dias da semana? (Digite separado por vírgula)\n\nExemplos:\n• Segunda, Quarta\n• Terça, Quinta, Sexta\n• Segunda, Quarta, Sexta\n\nDias: Segunda, Terça, Quarta, Quinta, Sexta, Sábado, Domingo',
+          { reply_markup: REMOVE_KEYBOARD }
+        );
+        return NextResponse.json({ ok: true });
+      }
+
+      if (state.step === 'ask_recurring_days') {
+        const dayNames = trimmed.split(/[,;]/).map(s => s.trim());
+        const daysOfWeek: DayOfWeek[] = [];
+        
+        for (const dayName of dayNames) {
+          const dayNum = dayNameToNumber(dayName);
+          if (dayNum !== null && !daysOfWeek.includes(dayNum)) {
+            daysOfWeek.push(dayNum);
+          }
+        }
+
+        if (daysOfWeek.length === 0) {
+          await bot.api.sendMessage(
+            chatId,
+            'Não entendi os dias. Digite algo como: Segunda, Quarta ou Terça, Quinta, Sexta'
+          );
+          return NextResponse.json({ ok: true });
+        }
+
+        await setBotState(telegramId, 'ask_level', {
+          title: state.payload.title,
+          is_recurring: true,
+          recurring_year: state.payload.recurring_year,
+          recurring_month: state.payload.recurring_month,
+          recurring_days_of_week: daysOfWeek,
+        });
+        await bot.api.sendMessage(
+          chatId,
+          `✅ Evento recorrente configurado:\n• Mês: ${state.payload.recurring_month}/${state.payload.recurring_year}\n• Dias: ${daysOfWeek.map(d => dayNumberToName(d)).join(', ')}\n\nQual o nível de importância?\n\n• 1 – Menos importante\n• 2 – Médio\n• 3 – Muito importante`,
+          { reply_markup: KEYBOARD_NIVEL }
+        );
         return NextResponse.json({ ok: true });
       }
 
@@ -407,6 +488,10 @@ export async function POST(request: NextRequest) {
             date: state.payload.date,
             end_date: state.payload.end_date,
             type: level,
+            is_recurring: state.payload.is_recurring,
+            recurring_year: state.payload.recurring_year,
+            recurring_month: state.payload.recurring_month,
+            recurring_days_of_week: state.payload.recurring_days_of_week,
           });
           await bot.api.sendMessage(
             chatId,
@@ -421,6 +506,10 @@ export async function POST(request: NextRequest) {
           date: state.payload.date,
           end_date: state.payload.end_date,
           type: level,
+          is_recurring: state.payload.is_recurring,
+          recurring_year: state.payload.recurring_year,
+          recurring_month: state.payload.recurring_month,
+          recurring_days_of_week: state.payload.recurring_days_of_week,
         });
 
         const quickFolders = folders.slice(0, 3);
@@ -505,36 +594,80 @@ export async function POST(request: NextRequest) {
             date: state.payload.date,
             end_date: state.payload.end_date,
             type: state.payload.type,
+            folder_name: state.payload.folder_name,
+            is_recurring: state.payload.is_recurring,
+            recurring_year: state.payload.recurring_year,
+            recurring_month: state.payload.recurring_month,
+            recurring_days_of_week: state.payload.recurring_days_of_week,
           });
           await bot.api.sendMessage(chatId, 'Qual o link? (Cole a URL ou toque em Pular)', {
             reply_markup: KEYBOARD_PULAR,
           });
         } else if (isNao(lower)) {
+          // Criar evento(s) sem link
           let folderId: string | null = null;
           if (state.payload.folder_name) {
             const folders = await getFoldersByUserId(userId);
             const folder = folders.find((f) => f.name === state.payload.folder_name);
             if (folder) folderId = folder.id;
           }
-          const newEvent = await createEvent({
-            user_id: userId,
-            title: state.payload.title!,
-            date: state.payload.date!,
-            end_date: state.payload.end_date ?? null,
-            type: state.payload.type!,
-            link: null,
-            folder_id: folderId,
-          });
-          await clearBotState(telegramId);
-          if (newEvent) {
-            const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
-            const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
-            let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
-            if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
-            msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
-            await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
+
+          // Se é evento recorrente
+          if (state.payload.is_recurring && state.payload.recurring_year && state.payload.recurring_month && state.payload.recurring_days_of_week) {
+            const dates = generateRecurringDates(
+              state.payload.recurring_year,
+              state.payload.recurring_month,
+              state.payload.recurring_days_of_week as DayOfWeek[]
+            );
+
+            const eventsData = dates.map(dateStr => ({
+              user_id: userId,
+              title: state.payload.title!,
+              date: dateStr,
+              end_date: null,
+              type: state.payload.type!,
+              link: null,
+              folder_id: folderId,
+              task_id: null,
+            }));
+
+            const createdEvents = await createMultipleEvents(eventsData);
+            await clearBotState(telegramId);
+            
+            if (createdEvents.length > 0) {
+              const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+              const monthName = new Date(state.payload.recurring_year!, state.payload.recurring_month! - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+              const daysNames = state.payload.recurring_days_of_week!.map(d => dayNumberToName(d as DayOfWeek)).join(', ');
+              await bot.api.sendMessage(
+                chatId,
+                `✅ ${createdEvents.length} eventos criados com sucesso!\n\n📝 ${state.payload.title}\n📅 ${monthName} de ${state.payload.recurring_year}\n🗓️ Dias: ${daysNames}\n${emoji[state.payload.type!]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`,
+                { reply_markup: REMOVE_KEYBOARD }
+              );
+            } else {
+              await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+            }
           } else {
-            await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+            // Evento único
+            const newEvent = await createEvent({
+              user_id: userId,
+              title: state.payload.title!,
+              date: state.payload.date!,
+              end_date: state.payload.end_date ?? null,
+              type: state.payload.type!,
+              link: null,
+              folder_id: folderId,
+            });
+            await clearBotState(telegramId);
+            if (newEvent) {
+              const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+              const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+              let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
+              if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
+              msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
+              await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
+            } else {
+              await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+            }
           }
         } else {
           await bot.api.sendMessage(chatId, 'Toque em um botão:', { reply_markup: KEYBOARD_SIM_NAO });
@@ -550,25 +683,63 @@ export async function POST(request: NextRequest) {
             const folder = folders.find((f) => f.name === state.payload.folder_name);
             if (folder) folderId = folder.id;
           }
-          const newEvent = await createEvent({
-            user_id: userId,
-            title: state.payload.title!,
-            date: state.payload.date!,
-            end_date: state.payload.end_date ?? null,
-            type: state.payload.type!,
-            link: null,
-            folder_id: folderId,
-          });
-          await clearBotState(telegramId);
-          if (newEvent) {
-            const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
-            const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
-            let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
-            if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
-            msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
-            await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
+
+          // Se é evento recorrente
+          if (state.payload.is_recurring && state.payload.recurring_year && state.payload.recurring_month && state.payload.recurring_days_of_week) {
+            const dates = generateRecurringDates(
+              state.payload.recurring_year,
+              state.payload.recurring_month,
+              state.payload.recurring_days_of_week as DayOfWeek[]
+            );
+
+            const eventsData = dates.map(dateStr => ({
+              user_id: userId,
+              title: state.payload.title!,
+              date: dateStr,
+              end_date: null,
+              type: state.payload.type!,
+              link: null,
+              folder_id: folderId,
+              task_id: null,
+            }));
+
+            const createdEvents = await createMultipleEvents(eventsData);
+            await clearBotState(telegramId);
+            
+            if (createdEvents.length > 0) {
+              const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+              const monthName = new Date(state.payload.recurring_year!, state.payload.recurring_month! - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+              const daysNames = state.payload.recurring_days_of_week!.map(d => dayNumberToName(d as DayOfWeek)).join(', ');
+              await bot.api.sendMessage(
+                chatId,
+                `✅ ${createdEvents.length} eventos criados com sucesso!\n\n📝 ${state.payload.title}\n📅 ${monthName} de ${state.payload.recurring_year}\n🗓️ Dias: ${daysNames}\n${emoji[state.payload.type!]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`,
+                { reply_markup: REMOVE_KEYBOARD }
+              );
+            } else {
+              await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+            }
           } else {
-            await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+            // Evento único
+            const newEvent = await createEvent({
+              user_id: userId,
+              title: state.payload.title!,
+              date: state.payload.date!,
+              end_date: state.payload.end_date ?? null,
+              type: state.payload.type!,
+              link: null,
+              folder_id: folderId,
+            });
+            await clearBotState(telegramId);
+            if (newEvent) {
+              const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+              const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+              let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
+              if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
+              msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
+              await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
+            } else {
+              await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+            }
           }
           return NextResponse.json({ ok: true });
         }
@@ -590,26 +761,64 @@ export async function POST(request: NextRequest) {
           const folder = folders.find((f) => f.name === state.payload.folder_name);
           if (folder) folderId = folder.id;
         }
-        const newEvent = await createEvent({
-          user_id: userId,
-          title: state.payload.title!,
-          date: state.payload.date!,
-          end_date: state.payload.end_date ?? null,
-          type: state.payload.type!,
-          link,
-          folder_id: folderId,
-        });
-        await clearBotState(telegramId);
-        if (newEvent) {
-          const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
-          const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
-          let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
-          if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
-          msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
-          msg += `\n🔗 ${newEvent.link}`;
-          await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
+
+        // Se é evento recorrente
+        if (state.payload.is_recurring && state.payload.recurring_year && state.payload.recurring_month && state.payload.recurring_days_of_week) {
+          const dates = generateRecurringDates(
+            state.payload.recurring_year,
+            state.payload.recurring_month,
+            state.payload.recurring_days_of_week as DayOfWeek[]
+          );
+
+          const eventsData = dates.map(dateStr => ({
+            user_id: userId,
+            title: state.payload.title!,
+            date: dateStr,
+            end_date: null,
+            type: state.payload.type!,
+            link: link,
+            folder_id: folderId,
+            task_id: null,
+          }));
+
+          const createdEvents = await createMultipleEvents(eventsData);
+          await clearBotState(telegramId);
+          
+          if (createdEvents.length > 0) {
+            const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+            const monthName = new Date(state.payload.recurring_year!, state.payload.recurring_month! - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+            const daysNames = state.payload.recurring_days_of_week!.map(d => dayNumberToName(d as DayOfWeek)).join(', ');
+            await bot.api.sendMessage(
+              chatId,
+              `✅ ${createdEvents.length} eventos criados com sucesso!\n\n📝 ${state.payload.title}\n📅 ${monthName} de ${state.payload.recurring_year}\n🗓️ Dias: ${daysNames}\n🔗 Link: ${link}\n${emoji[state.payload.type!]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`,
+              { reply_markup: REMOVE_KEYBOARD }
+            );
+          } else {
+            await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+          }
         } else {
-          await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+          // Evento único
+          const newEvent = await createEvent({
+            user_id: userId,
+            title: state.payload.title!,
+            date: state.payload.date!,
+            end_date: state.payload.end_date ?? null,
+            type: state.payload.type!,
+            link,
+            folder_id: folderId,
+          });
+          await clearBotState(telegramId);
+          if (newEvent) {
+            const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+            const emoji = { simple: '🟢', medium: '🟡', important: '🔴' };
+            let msg = `✅ Pronto! Evento adicionado.\n\n📝 ${newEvent.title}\n📅 ${fmt(newEvent.date)}`;
+            if (newEvent.end_date) msg += ` até ${fmt(newEvent.end_date)}`;
+            msg += `\n${emoji[newEvent.type]} Nível ${state.payload.type === 'simple' ? 1 : state.payload.type === 'medium' ? 2 : 3}`;
+            msg += `\n🔗 ${newEvent.link}`;
+            await bot.api.sendMessage(chatId, msg, { reply_markup: REMOVE_KEYBOARD });
+          } else {
+            await bot.api.sendMessage(chatId, 'Algo deu errado ao salvar. Tente de novo.');
+          }
         }
         return NextResponse.json({ ok: true });
       }

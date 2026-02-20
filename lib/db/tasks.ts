@@ -2,6 +2,7 @@ import { getNeon } from '@/lib/neon';
 import { Task } from './types';
 
 function rowToTask(row: Record<string, unknown>): Task {
+  const dueDate = row.due_date;
   return {
     id: String(row.id),
     user_id: String(row.user_id),
@@ -10,6 +11,9 @@ function rowToTask(row: Record<string, unknown>): Task {
     details: row.details != null ? String(row.details) : null,
     completed: Boolean(row.completed),
     completed_at: row.completed_at != null ? String(row.completed_at) : null,
+    due_date: dueDate != null && dueDate !== '' ? String(dueDate).split('T')[0] : null,
+    color: row.color != null ? String(row.color) : null,
+    note_list_id: row.note_list_id != null ? String(row.note_list_id) : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -20,6 +24,16 @@ export async function getTasksByFolderId(folderId: string, userId: string): Prom
   const rows = await sql`
     SELECT * FROM tasks
     WHERE folder_id = ${folderId} AND user_id = ${userId}
+    ORDER BY created_at ASC
+  `;
+  return (rows as Record<string, unknown>[]).map(rowToTask);
+}
+
+export async function getTasksByNoteListId(noteListId: string, userId: string): Promise<Task[]> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT * FROM tasks
+    WHERE note_list_id = ${noteListId} AND user_id = ${userId}
     ORDER BY created_at ASC
   `;
   return (rows as Record<string, unknown>[]).map(rowToTask);
@@ -37,15 +51,22 @@ export async function createTask(taskData: {
   folder_id: string;
   title: string;
   details?: string | null;
+  due_date?: string | null;
+  color?: string | null;
+  note_list_id?: string | null;
 }): Promise<Task | null> {
   const sql = getNeon();
+  const dueDateVal = taskData.due_date && taskData.due_date.trim() ? taskData.due_date.trim().split('T')[0] : null;
   const rows = await sql`
-    INSERT INTO tasks (user_id, folder_id, title, details)
+    INSERT INTO tasks (user_id, folder_id, title, details, due_date, color, note_list_id)
     VALUES (
       ${taskData.user_id},
       ${taskData.folder_id},
       ${taskData.title.trim()},
-      ${taskData.details?.trim() || null}
+      ${taskData.details?.trim() || null},
+      ${dueDateVal},
+      ${taskData.color || null},
+      ${taskData.note_list_id || null}
     )
     RETURNING *
   `;
@@ -59,6 +80,9 @@ export async function updateTask(
     title: string;
     details: string | null;
     completed: boolean;
+    due_date: string | null;
+    color: string | null;
+    note_list_id: string | null;
   }>
 ): Promise<Task | null> {
   const existing = await getTaskById(taskId);
@@ -72,6 +96,15 @@ export async function updateTask(
     : updates.completed === false
     ? null
     : existing.completed_at;
+  const due_date = updates.due_date !== undefined
+    ? (updates.due_date && updates.due_date.trim() ? updates.due_date.trim().split('T')[0] : null)
+    : existing.due_date;
+  const color = updates.color !== undefined 
+    ? (updates.color && updates.color.trim() ? updates.color.trim() : null)
+    : existing.color;
+  const note_list_id = updates.note_list_id !== undefined 
+    ? (updates.note_list_id && typeof updates.note_list_id === 'string' && updates.note_list_id.trim() ? updates.note_list_id.trim() : null)
+    : existing.note_list_id;
 
   const sql = getNeon();
   const rows = await sql`
@@ -79,7 +112,10 @@ export async function updateTask(
     SET title = ${title.trim()}, 
         details = ${details?.trim() || null},
         completed = ${completed},
-        completed_at = ${completed_at}
+        completed_at = ${completed_at},
+        due_date = ${due_date},
+        color = ${color},
+        note_list_id = ${note_list_id}
     WHERE id = ${taskId}
     RETURNING *
   `;
@@ -145,4 +181,48 @@ export async function getCompletedTasksCountByMonth(userId: string, year: number
   `;
   const row = (rows as Record<string, unknown>[])[0];
   return row ? Number(row.count) : 0;
+}
+
+/** Tarefas com due_date em uma data específica (YYYY-MM-DD), não concluídas */
+export async function getTasksDueOn(userId: string, dateYyyyMmDd: string): Promise<Task[]> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT * FROM tasks
+    WHERE user_id = ${userId}
+      AND due_date = ${dateYyyyMmDd}
+      AND completed = false
+    ORDER BY title
+  `;
+  return (rows as Record<string, unknown>[]).map(rowToTask);
+}
+
+/** Conta tarefas concluídas na semana atual (segunda a domingo, timezone America/Sao_Paulo) */
+export async function getCompletedTasksCountThisWeek(userId: string): Promise<number> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT COUNT(*) as count
+    FROM tasks
+    WHERE user_id = ${userId}
+      AND completed = true
+      AND completed_at IS NOT NULL
+      AND completed_at >= date_trunc('week', NOW() AT TIME ZONE 'America/Sao_Paulo') AT TIME ZONE 'America/Sao_Paulo'
+  `;
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? Number(row.count) : 0;
+}
+
+/** Pendentes por folder_id para um usuário: Map<folderId, count> */
+export async function getPendingCountByFolder(userId: string): Promise<Map<string, number>> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT folder_id, COUNT(*) as count
+    FROM tasks
+    WHERE user_id = ${userId} AND completed = false
+    GROUP BY folder_id
+  `;
+  const map = new Map<string, number>();
+  for (const row of rows as Record<string, unknown>[]) {
+    map.set(String(row.folder_id), Number(row.count));
+  }
+  return map;
 }

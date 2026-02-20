@@ -136,6 +136,56 @@ export async function deleteEvent(eventId: string): Promise<boolean> {
   }
 }
 
+/**
+ * Cria múltiplos eventos de uma vez (útil para eventos recorrentes)
+ */
+export async function createMultipleEvents(eventsData: Array<{
+  user_id: string;
+  title: string;
+  date: string;
+  end_date?: string | null;
+  type: 'simple' | 'medium' | 'important';
+  link?: string | null;
+  folder_id?: string | null;
+  task_id?: string | null;
+}>): Promise<Event[]> {
+  if (eventsData.length === 0) return [];
+
+  const sql = getNeon();
+  const createdEvents: Event[] = [];
+
+  // Cria eventos um por um para garantir que todos sejam criados mesmo se algum falhar
+  for (const eventData of eventsData) {
+    try {
+      const dateOnly = toDateOnly(eventData.date);
+      const endDateOnly = eventData.end_date != null ? toDateOnly(eventData.end_date) : null;
+      const rows = await sql`
+        INSERT INTO events (user_id, title, date, end_date, type, link, folder_id, task_id)
+        VALUES (
+          ${eventData.user_id},
+          ${eventData.title.trim()},
+          ${dateOnly},
+          ${endDateOnly},
+          ${eventData.type},
+          ${eventData.link ?? null},
+          ${eventData.folder_id ?? null},
+          ${eventData.task_id ?? null}
+        )
+        RETURNING *
+      `;
+      const row = (rows as Record<string, unknown>[])[0];
+      if (row) {
+        createdEvents.push(rowToEvent(row));
+      }
+    } catch (error) {
+      console.error(`Error creating recurring event for date ${eventData.date}:`, error);
+      // Continua criando os outros eventos mesmo se um falhar
+    }
+  }
+
+  return createdEvents;
+}
+
 /** Busca eventos do usuário por título (case-insensitive, parcial). */
 export async function searchEventsByUserId(userId: string, query: string): Promise<Event[]> {
   if (!query || query.trim().length === 0) {

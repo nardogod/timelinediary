@@ -2,6 +2,9 @@ import { getNeon } from '@/lib/neon';
 
 export type BotStep =
   | 'confirm_name'
+  | 'ask_is_recurring'
+  | 'ask_recurring_month'
+  | 'ask_recurring_days'
   | 'ask_date'
   | 'ask_has_end'
   | 'ask_end_date'
@@ -17,6 +20,10 @@ export interface BotStatePayload {
   type?: 'simple' | 'medium' | 'important';
   link?: string;
   folder_name?: string;
+  is_recurring?: boolean;
+  recurring_year?: number;
+  recurring_month?: number;
+  recurring_days_of_week?: number[];
 }
 
 export interface BotState {
@@ -38,6 +45,12 @@ function rowToState(row: Record<string, unknown>): BotState {
       type: payload?.type != null ? (payload.type as 'simple' | 'medium' | 'important') : undefined,
       link: payload?.link != null ? String(payload.link) : undefined,
       folder_name: payload?.folder_name != null ? String(payload.folder_name) : undefined,
+      is_recurring: payload?.is_recurring != null ? Boolean(payload.is_recurring) : undefined,
+      recurring_year: payload?.recurring_year != null ? Number(payload.recurring_year) : undefined,
+      recurring_month: payload?.recurring_month != null ? Number(payload.recurring_month) : undefined,
+      recurring_days_of_week: payload?.recurring_days_of_week != null && Array.isArray(payload.recurring_days_of_week) 
+        ? payload.recurring_days_of_week.map(d => Number(d)) 
+        : undefined,
     },
     updated_at: String(row.updated_at),
   };

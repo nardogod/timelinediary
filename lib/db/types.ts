@@ -26,6 +26,19 @@ export interface Task {
   details: string | null;
   completed: boolean;
   completed_at: string | null;
+  due_date: string | null;
+  color: string | null;
+  note_list_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteList {
+  id: string;
+  user_id: string;
+  folder_id: string;
+  name: string;
+  color: string;
   created_at: string;
   updated_at: string;
 }

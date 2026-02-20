@@ -66,6 +66,7 @@ Copiar `.env.local.example` para `.env.local` e preencher. **Nunca commitar `.en
 | `TELEGRAM_BOT_TOKEN` | Bot do Telegram (ver `docs/TELEGRAM_CONFIG.md`) |
 | `TELEGRAM_WEBHOOK_SECRET` | Validação do webhook |
 | `NEXT_PUBLIC_APP_URL` | URL pública do app (produção) |
+| `CRON_SECRET` | Secret para cron de notificações Telegram (opcional) |
 
 ---
 

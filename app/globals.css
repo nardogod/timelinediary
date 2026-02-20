@@ -420,14 +420,70 @@ body {
     min-height: 44px;
   }
 
-  /* Slider de zoom vertical para mobile */
+  /* Slider de zoom vertical para mobile - Melhorado seguindo UX best practices */
   .zoom-slider-vertical {
-    -webkit-appearance: slider-vertical;
-    writing-mode: bt-lr;
-    height: 110px;
-    width: 24px;
-    padding: 0;
-    margin: 0 4px;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    height: 120px;
+    width: 32px; /* Largura maior para melhor toque */
+    padding: 8px 0; /* Padding para área de toque maior */
+    margin: 0;
+    touch-action: manipulation; /* Remove delay de 300ms e previne scroll acidental */
+    cursor: grab;
+    background: transparent;
+  }
+
+  .zoom-slider-vertical:active {
+    cursor: grabbing;
+  }
+
+  /* Estilização do track (trilha) */
+  .zoom-slider-vertical::-webkit-slider-runnable-track {
+    width: 4px;
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 2px;
+  }
+
+  .zoom-slider-vertical::-moz-range-track {
+    width: 4px;
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 2px;
+  }
+
+  /* Estilização do thumb (controle deslizante) */
+  .zoom-slider-vertical::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px; /* Thumb maior para melhor toque */
+    height: 28px;
+    background: #3b82f6;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+    margin-left: -12px; /* Centraliza o thumb */
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+
+  .zoom-slider-vertical::-webkit-slider-thumb:active {
+    transform: scale(1.2);
+    box-shadow: 0 3px 8px rgba(59, 130, 246, 0.5);
+  }
+
+  .zoom-slider-vertical::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    background: #3b82f6;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+
+  .zoom-slider-vertical::-moz-range-thumb:active {
+    transform: scale(1.2);
+    box-shadow: 0 3px 8px rgba(59, 130, 246, 0.5);
   }
 }
 

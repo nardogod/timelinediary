@@ -28,9 +28,11 @@ interface TimelineProps {
   onTaskEdited?: () => void;
   /** IDs de eventos cujo link foi visualizado por alguém (para mostrar selo "Visualizado") */
   eventIdsWithViews?: Set<string>;
+  /** Todos os eventos (não filtrados) - usado para cálculo de posição quando há filtros */
+  allEvents?: MockEvent[];
 }
 
-function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited, eventIdsWithViews }: TimelineProps) {
+function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited, eventIdsWithViews, allEvents }: TimelineProps) {
   const { zoom, pan, isDragging, setIsDragging, setPan, handleZoomChange, handleReset } = useTimeline();
   const [dragStart, setDragStart] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,14 +81,23 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
     // Ordena eventos regulares por data para garantir ordem correta
     regular.sort((a, b) => a.date.localeCompare(b.date));
     
+    // Para marcadores, usa eventsForPosition se disponível para manter consistência
+    const eventsForMarkers = allEvents && allEvents.length > 0 ? allEvents : events;
+    
     return {
-      markers: getTimelineMarkers(events, defaultMonth),
-      dailyMarkers: getDailyMarkers(events, defaultMonth),
+      markers: getTimelineMarkers(eventsForMarkers, defaultMonth),
+      dailyMarkers: getDailyMarkers(eventsForMarkers, defaultMonth),
       sortedEvents: sorted,
       groupedEvents: grouped,
       regularEvents: regular
     };
-  }, [events, defaultMonth]);
+  }, [events, defaultMonth, allEvents]);
+
+  // Usa allEvents para cálculo de posição se disponível (para manter consistência quando há filtros)
+  // Caso contrário, usa events (eventos filtrados)
+  const eventsForPosition = useMemo(() => {
+    return allEvents && allEvents.length > 0 ? allEvents : events;
+  }, [allEvents, events]);
 
   // Layout para grupos de tarefas concluídas (evita sobreposição horizontal)
   const groupedTasksLayout = useMemo(() => {
@@ -101,24 +112,42 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
     }> = [];
 
     const lastPosPerLayer: number[] = [];
-    const MIN_GAP_PERCENT = 10; // distância mínima entre cards na mesma camada (aumentado para evitar sobreposição)
+    const MIN_GAP_PERCENT = 8; // distância mínima entre cards na mesma camada (reduzido para evitar muitas camadas)
+    const MAX_LAYERS = 2; // Limita o número máximo de camadas para evitar cards muito distantes
 
     const byDate = [...groupedEvents].sort((a, b) => a.date.localeCompare(b.date));
+    
+    // Se há poucos eventos, tenta manter todos na primeira camada alternando acima/abaixo
+    const useSimpleLayout = groupedEvents.length <= 3;
+    
+    byDate.forEach((group, index) => {
+      const pos = calculateEventPosition(group.date, eventsForPosition, defaultMonth);
 
-    byDate.forEach((group) => {
-      const pos = calculateEventPosition(group.date, events, defaultMonth);
-
-      // Encontra a primeira camada onde não haja colisão horizontal
       let layer = 0;
-      while (
-        layer < lastPosPerLayer.length &&
-        Math.abs(pos - lastPosPerLayer[layer]) < MIN_GAP_PERCENT
-      ) {
-        layer++;
-      }
-      lastPosPerLayer[layer] = pos;
+      let placement: 'top' | 'bottom' = 'top';
 
-      const placement: 'top' | 'bottom' = layer % 2 === 0 ? 'top' : 'bottom';
+      if (useSimpleLayout) {
+        // Layout simples: alterna acima/abaixo na primeira camada
+        placement = index % 2 === 0 ? 'top' : 'bottom';
+        layer = 0;
+      } else {
+        // Layout com camadas: encontra a primeira camada onde não haja colisão horizontal
+        while (
+          layer < lastPosPerLayer.length &&
+          layer < MAX_LAYERS &&
+          Math.abs(pos - lastPosPerLayer[layer]) < MIN_GAP_PERCENT
+        ) {
+          layer++;
+        }
+        
+        // Se atingiu o máximo de camadas, força na última camada mesmo com colisão
+        if (layer >= MAX_LAYERS) {
+          layer = MAX_LAYERS - 1;
+        }
+        
+        lastPosPerLayer[layer] = pos;
+        placement = layer % 2 === 0 ? 'top' : 'bottom';
+      }
 
       layouts.push({
         date: group.date,
@@ -130,7 +159,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
     });
 
     return layouts;
-  }, [groupedEvents, events, defaultMonth]);
+  }, [groupedEvents, eventsForPosition, defaultMonth]);
 
   // Otimiza handlers de mouse/touch com useCallback
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -282,7 +311,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
               <div className="relative bg-slate-700/50 rounded-full" style={{ height: '2px', width: '100%', overflow: 'visible' }}>
                 {/* Marcadores diários também na linha de períodos */}
                 {dailyMarkers.map((dailyMarker, index) => {
-                  const pos = calculateEventPosition(dailyMarker.date, events, defaultMonth);
+                  const pos = calculateEventPosition(dailyMarker.date, eventsForPosition, defaultMonth);
                   if (isNaN(pos) || pos < 0 || pos > 100) return null;
                   
                   return (
@@ -380,7 +409,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
             )}
             {/* Marcadores diários (risquinhos) - renderizados primeiro para ficarem atrás */}
             {dailyMarkers.map((dailyMarker, index) => {
-              const pos = calculateEventPosition(dailyMarker.date, events, defaultMonth);
+              const pos = calculateEventPosition(dailyMarker.date, eventsForPosition, defaultMonth);
               
               if (isNaN(pos) || pos < 0 || pos > 100) return null;
               
@@ -430,7 +459,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
 
             {/* Marcadores semanais (linhas maiores com labels) */}
             {markers.map((marker, index) => {
-              const pos = calculateEventPosition(marker.date, events, defaultMonth);
+              const pos = calculateEventPosition(marker.date, eventsForPosition, defaultMonth);
               return (
                 <div 
                   key={`marker-${index}`}
@@ -469,7 +498,7 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
 
             {/* Eventos regulares (não agrupados) */}
             {regularEvents.map((event, index) => {
-              const pos = calculateEventPosition(event.date, events, defaultMonth);
+              const pos = calculateEventPosition(event.date, eventsForPosition, defaultMonth);
               
               // Lógica simples: alterna acima/abaixo da linha por ordem de data
               // Índice par = acima (top), índice ímpar = abaixo (bottom)

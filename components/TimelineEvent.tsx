@@ -327,9 +327,9 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
         <div 
           className="absolute left-1/2 w-0.5 -translate-x-1/2 transition-all duration-300"
           style={{
-            height: `${60 + (layer > 0 ? layer * 20 : 0)}px`,
+            height: `${72 - 2 + (layer > 0 ? layer * 20 : 0)}px`,
             backgroundColor: color,
-            [isTop ? 'bottom' : 'top']: '0'
+            [isTop ? 'bottom' : 'top']: isTop ? '12px' : '2px' // Para linha superior usa bottom, para inferior usa top
           }}
         ></div>
 

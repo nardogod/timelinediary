@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { getTasksByFolderId, createTask, updateTask, deleteTask, getTaskById } from '@/lib/db/tasks';
+import { getTasksByFolderId, getTasksByNoteListId, createTask, updateTask, deleteTask, getTaskById } from '@/lib/db/tasks';
 import { createEvent, getEventsByUserId, updateEvent } from '@/lib/db/events';
 import { getFolderById } from '@/lib/db/folders';
+import { getNoteListById } from '@/lib/db/note-lists';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,8 +14,21 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const folderId = searchParams.get('folderId');
+    const noteListId = searchParams.get('noteListId');
+
+    if (noteListId) {
+      // Verificar se a lista pertence ao usuário
+      const list = await getNoteListById(noteListId);
+      if (!list || list.user_id !== userId) {
+        return NextResponse.json({ error: 'Note list not found or access denied' }, { status: 403 });
+      }
+
+      const tasks = await getTasksByNoteListId(noteListId, userId);
+      return NextResponse.json(tasks);
+    }
+
     if (!folderId) {
-      return NextResponse.json({ error: 'folderId is required' }, { status: 400 });
+      return NextResponse.json({ error: 'folderId or noteListId is required' }, { status: 400 });
     }
 
     // Verificar se a pasta pertence ao usuário
@@ -39,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { folder_id, title, details } = body;
+    const { folder_id, title, details, due_date, color, note_list_id } = body;
     if (!folder_id || !title) {
       return NextResponse.json(
         { error: 'folder_id and title are required' },
@@ -58,6 +72,9 @@ export async function POST(request: NextRequest) {
       folder_id,
       title,
       details: details || null,
+      due_date: due_date ?? null,
+      color: color || null,
+      note_list_id: note_list_id || null,
     });
 
     if (!task) {
@@ -78,7 +95,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, title, details, completed } = body;
+    const { id, title, details, completed, due_date, color, note_list_id } = body;
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
@@ -87,6 +104,35 @@ export async function PATCH(request: NextRequest) {
     const task = await getTaskById(id);
     if (!task || task.user_id !== userId) {
       return NextResponse.json({ error: 'Task not found or access denied' }, { status: 403 });
+    }
+
+    // Verificar se o note_list_id existente na tarefa ainda é válido
+    let validExistingNoteListId: string | null = null;
+    if (task.note_list_id) {
+      try {
+        const existingList = await getNoteListById(task.note_list_id);
+        if (existingList && existingList.user_id === userId && existingList.folder_id === task.folder_id) {
+          validExistingNoteListId = task.note_list_id;
+        }
+        // Se inválido, validExistingNoteListId permanece null
+      } catch (error) {
+        console.warn('Error checking existing note_list_id:', error);
+        // Se houver erro ao verificar, assume que é inválido
+      }
+    }
+
+    // Se note_list_id foi fornecido, verificar se existe e pertence ao usuário
+    let validNewNoteListId: string | null | undefined = undefined;
+    if (note_list_id !== undefined && note_list_id !== null && typeof note_list_id === 'string' && note_list_id.trim() !== '') {
+      const list = await getNoteListById(note_list_id);
+      if (!list || list.user_id !== userId) {
+        return NextResponse.json({ error: 'Note list not found or access denied' }, { status: 403 });
+      }
+      // Verificar se a lista pertence à mesma pasta da tarefa
+      if (list.folder_id !== task.folder_id) {
+        return NextResponse.json({ error: 'Note list does not belong to the same folder' }, { status: 403 });
+      }
+      validNewNoteListId = note_list_id.trim();
     }
 
     // Se está marcando como concluída e ainda não estava concluída, criar evento na timeline
@@ -109,11 +155,51 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const updated = await updateTask(id, {
-      title: title ?? undefined,
-      details: details !== undefined ? details : undefined,
-      completed: completed !== undefined ? completed : undefined,
-    });
+    // Normalizar note_list_id antes de passar para updateTask
+    // Se foi fornecido um novo valor, usa ele (já validado acima)
+    // Senão, usa o valor existente válido (ou null se inválido)
+    const normalizedNoteListId = validNewNoteListId !== undefined 
+      ? validNewNoteListId 
+      : validExistingNoteListId;
+
+    let updated;
+    try {
+      updated = await updateTask(id, {
+        title: title ?? undefined,
+        details: details !== undefined ? details : undefined,
+        completed: completed !== undefined ? completed : undefined,
+        due_date: due_date !== undefined ? due_date : undefined,
+        color: color !== undefined ? (color && typeof color === 'string' && color.trim() ? color.trim() : null) : undefined,
+        note_list_id: normalizedNoteListId,
+      });
+    } catch (error) {
+      console.error('Error updating task in database:', error);
+      console.error('Task ID:', id);
+      console.error('Note list ID:', normalizedNoteListId);
+      if (error instanceof Error) {
+        // Se for erro de foreign key constraint, tenta limpar o note_list_id e tentar novamente
+        if (error.message.includes('foreign key') || error.message.includes('constraint')) {
+          console.log('Foreign key constraint error detected, attempting to clear note_list_id');
+          try {
+            updated = await updateTask(id, {
+              title: title ?? undefined,
+              details: details !== undefined ? details : undefined,
+              completed: completed !== undefined ? completed : undefined,
+              due_date: due_date !== undefined ? due_date : undefined,
+              color: color !== undefined ? (color && typeof color === 'string' && color.trim() ? color.trim() : null) : undefined,
+              note_list_id: null, // Limpa o note_list_id inválido
+            });
+          } catch (retryError) {
+            console.error('Error on retry:', retryError);
+            return NextResponse.json({ error: 'Lista de notas não encontrada ou inválida' }, { status: 400 });
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
 
     if (!updated) {
       return NextResponse.json({ error: 'Failed to update task' }, { status: 404 });

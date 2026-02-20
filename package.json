@@ -13,6 +13,7 @@
     "db:migrate": "node scripts/run-neon-migration.mjs",
     "db:migrate:bot": "node scripts/run-neon-migration-002.mjs",
     "db:migrate:follows": "node scripts/run-neon-migration-003.mjs",
+    "db:migrate:note-lists": "node scripts/run-neon-migration-007.mjs",
     "db:check": "node scripts/check-neon-tables.mjs",
     "telegram:test": "node scripts/test-telegram.mjs",
     "telegram:webhook": "node scripts/set-telegram-webhook.mjs",

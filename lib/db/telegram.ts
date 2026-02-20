@@ -30,6 +30,15 @@ export async function getTelegramUserByUserId(userId: string): Promise<TelegramU
   return row ? rowToTelegramUser(row) : null;
 }
 
+/** Lista todos os usuários com Telegram vinculado (para notificações em lote) */
+export async function getAllLinkedTelegramUsers(): Promise<TelegramUser[]> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT * FROM telegram_users ORDER BY user_id
+  `;
+  return (rows as Record<string, unknown>[]).map(rowToTelegramUser);
+}
+
 export async function linkTelegramUser(data: {
   user_id: string;
   telegram_id: number;

@@ -13,25 +13,83 @@ interface FolderTabsProps {
   onOpenNotes?: (folderId: string, folderName: string) => void;
   completedTasksCount?: Map<string, number>; // Map<folderId, count>
   totalCompletedTasks?: number;
+  filterActive?: boolean; // Indica se o filtro de mês está ativo
+  visibleEvents?: MockEvent[]; // Eventos realmente visíveis na timeline (já filtrados por pasta e mês)
 }
 
-function FolderTabs({ folders, events, selectedFolder, onSelectFolder, onOpenNotes, completedTasksCount = new Map(), totalCompletedTasks = 0 }: FolderTabsProps) {
-  // Contagem 100% baseada na lista de eventos da página (evita divergência com API)
-  // Cada pasta mostra quantos eventos existem nela (regulares + tarefas concluídas na timeline)
+function FolderTabs({ folders, events, selectedFolder, onSelectFolder, onOpenNotes, completedTasksCount = new Map(), totalCompletedTasks = 0, filterActive = false, visibleEvents }: FolderTabsProps) {
+  // Contagem baseada apenas nos eventos visíveis na timeline do mês atual quando filterActive é true
+  // Quando filterActive é false, conta todos os eventos
+  // IMPORTANTE: Quando uma pasta está selecionada, usa visibleEvents apenas para a pasta selecionada
+  // para garantir que a contagem reflita exatamente o que está visível na timeline
+  // CRÍTICO: A Timeline só renderiza tarefas com taskId, então eventos de tarefa sem taskId não devem ser contados
   const eventCounts = useMemo(() => {
     const counts = new Map<string | null, number>();
     
-    // Total: todos os eventos (a lista "events" já contém todos, incluindo de tarefas)
-    counts.set(null, events.length);
+    // Filtra apenas eventos pontuais (sem endDate) - eventos de período são renderizados separadamente
+    // IMPORTANTE: Remove eventos de tarefa que não têm taskId (não são renderizados na timeline)
+    const pointEvents = events.filter(e => {
+      if (e.endDate) return false; // Remove eventos de período
+      // Se é um evento de tarefa (formato "título - HH:MM"), só conta se tiver taskId
+      // A Timeline só renderiza tarefas com taskId (ver Timeline.tsx linha 73)
+      if (e.taskId === undefined && / - \d{2}:\d{2}$/.test(e.title)) {
+        return false; // Evento de tarefa sem taskId não é renderizado
+      }
+      return true;
+    });
+    
+    // Quando uma pasta está selecionada e filterActive é true, usa visibleEvents para contar apenas eventos visíveis
+    // Caso contrário, usa pointEvents (que pode ser monthEvents ou allEvents dependendo de filterActive)
+    const visiblePointEvents = (selectedFolder !== null && filterActive && visibleEvents) 
+      ? visibleEvents.filter(e => {
+          if (e.endDate) return false; // Remove eventos de período
+          // Remove eventos de tarefa sem taskId (não são renderizados)
+          if (e.taskId === undefined && / - \d{2}:\d{2}$/.test(e.title)) {
+            return false;
+          }
+          return true;
+        })
+      : null;
+    
+    // Total: apenas eventos pontuais visíveis
+    // Se há eventos visíveis filtrados (pasta selecionada), usa esses; senão usa todos os eventos do mês
+    counts.set(null, visiblePointEvents !== null ? visiblePointEvents.length : pointEvents.length);
     
     folders.forEach(folder => {
+      // Para a pasta selecionada quando filterActive é true, usa visiblePointEvents
+      // Para outras pastas ou quando filterActive é false, usa pointEvents
+      const eventsToCount = (selectedFolder === folder.name && visiblePointEvents !== null)
+        ? visiblePointEvents
+        : pointEvents;
+      
       // Eventos cuja pasta é esta (por nome) — inclui regulares e eventos de tarefa
-      const folderTotal = events.filter(e => e.folder === folder.name).length;
+      // Comparação estrita para evitar problemas de case sensitivity ou espaços
+      // IMPORTANTE: Conta apenas eventos pontuais (sem endDate), não eventos de período
+      // Eventos de período são renderizados separadamente como PeriodLine e não devem ser contados aqui
+      const folderEvents = eventsToCount.filter(e => {
+        // Compara o nome da pasta de forma case-insensitive e sem espaços extras
+        const eventFolder = e.folder?.trim();
+        const folderName = folder.name.trim();
+        const matchesFolder = eventFolder && folderName && eventFolder.toLowerCase() === folderName.toLowerCase();
+        
+        return matchesFolder;
+      });
+      
+      const folderTotal = folderEvents.length;
+      
+      // Debug: log apenas se houver eventos (para não poluir o console)
+      if (folderTotal > 0 && process.env.NODE_ENV === 'development') {
+        const source = (selectedFolder === folder.name && visiblePointEvents !== null)
+          ? '(visíveis na timeline)'
+          : filterActive ? '(mês atual)' : '(todos)';
+        console.log(`[FolderTabs] Pasta "${folder.name}": ${folderTotal} eventos ${source}`, folderEvents.map(e => ({ id: e.id, title: e.title, date: e.date, endDate: e.endDate, taskId: e.taskId })));
+      }
+      
       counts.set(folder.name, folderTotal);
     });
     
     return counts;
-  }, [folders, events]);
+  }, [folders, events, filterActive, selectedFolder, visibleEvents]);
 
   // Memoiza função de contagem
   const getEventCount = useMemo(() => {
