@@ -70,12 +70,15 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
     setFailedAvatars(new Set());
   }, [selectedStyle]);
 
-  // Preload das primeiras 8 imagens imediatamente
+  // Preload das primeiras 12 imagens imediatamente (aumentado para melhor UX)
   useEffect(() => {
     if (!isOpen) return;
     
-    const preloadImages = avatars.slice(0, 8);
+    const preloadImages = avatars.slice(0, 12);
     preloadImages.forEach(avatar => {
+      // Verifica se já está carregado
+      if (loadedAvatars.has(avatar.url) || failedAvatars.has(avatar.url)) return;
+      
       const img = new Image();
       img.onload = () => {
         setLoadedAvatars(prev => new Set(prev).add(avatar.url));
@@ -85,14 +88,19 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
       };
       img.src = avatar.url;
     });
-  }, [isOpen, avatars]);
+  }, [isOpen, avatars, loadedAvatars, failedAvatars]);
 
-  // Lazy load usando Intersection Observer
+  // Lazy load usando Intersection Observer - simplificado e mais confiável
   useEffect(() => {
     if (!isOpen) return;
 
     // Aguarda um pouco para garantir que o DOM foi renderizado
     const timeoutId = setTimeout(() => {
+      // Desconecta observer anterior se existir
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+
       observerRef.current = new IntersectionObserver(
         (entries) => {
           entries.forEach(entry => {
@@ -100,9 +108,11 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
               const img = entry.target as HTMLImageElement;
               const src = img.dataset.src;
               if (src && !loadedAvatars.has(src) && !failedAvatars.has(src)) {
+                // Carrega a imagem diretamente
                 const imageLoader = new Image();
                 imageLoader.onload = () => {
                   img.src = src;
+                  img.removeAttribute('data-src');
                   setLoadedAvatars(prev => new Set(prev).add(src));
                 };
                 imageLoader.onerror = () => {
@@ -114,16 +124,23 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
             }
           });
         },
-        { rootMargin: '50px' }
+        { rootMargin: '100px' } // Aumentado para carregar antes de aparecer na tela
       );
 
+      // Observa todas as imagens com data-src
       const images = document.querySelectorAll('img[data-src]');
-      images.forEach(img => observerRef.current?.observe(img));
-    }, 100);
+      images.forEach(img => {
+        if (img.dataset.src && !loadedAvatars.has(img.dataset.src) && !failedAvatars.has(img.dataset.src)) {
+          observerRef.current?.observe(img);
+        }
+      });
+    }, 200);
 
     return () => {
       clearTimeout(timeoutId);
-      observerRef.current?.disconnect();
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
     };
   }, [isOpen, avatars, loadedAvatars, failedAvatars]);
 
@@ -133,7 +150,7 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
       return;
     }
 
-    // Bloqueia seleção de avatares premium
+    // Bloqueia seleção de avatares premium (mas permite visualizar)
     if (isPremiumStyle) {
       showToast('Este estilo é exclusivo para assinantes Premium. Assine para desbloquear todos os estilos!', 'warning');
       return;
@@ -239,10 +256,10 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
                     ${isCurrent 
                       ? 'border-blue-500 ring-2 ring-blue-500/50' 
                       : isPremiumStyle
-                      ? 'border-yellow-500/50 opacity-75'
+                      ? 'border-yellow-500/50'
                       : 'border-slate-600 hover:border-slate-500'
                     }
-                    ${saving || isPremiumStyle ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
+                    ${saving ? 'cursor-not-allowed' : isPremiumStyle ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
                   `}
                   title={
                     isCurrent 
@@ -266,29 +283,30 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
                     </div>
                   )}
                   
-                  {/* Image */}
-                  {(isLoaded || shouldPreload) && (
-                    <img
-                      src={shouldPreload ? avatar.url : undefined}
-                      data-src={!shouldPreload ? avatar.url : undefined}
-                      alt={`Avatar ${index + 1}`}
-                      className={`w-full h-full object-cover transition-opacity duration-300 ${
-                        isLoaded ? 'opacity-100' : 'opacity-0'
-                      } ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
-                      loading={shouldPreload ? 'eager' : 'lazy'}
-                      onLoad={(e) => {
-                        const img = e.currentTarget;
+                  {/* Image - sempre renderiza, mas controla visibilidade */}
+                  <img
+                    src={shouldPreload || isLoaded ? avatar.url : undefined}
+                    data-src={!shouldPreload && !isLoaded ? avatar.url : undefined}
+                    alt={`Avatar ${index + 1}`}
+                    className={`w-full h-full object-cover transition-opacity duration-300 ${
+                      isLoaded || shouldPreload ? 'opacity-100' : 'opacity-0'
+                    } ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
+                    loading={shouldPreload ? 'eager' : 'lazy'}
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      const src = img.src || img.dataset.src;
+                      if (src) {
+                        setLoadedAvatars(prev => new Set(prev).add(src));
                         img.classList.remove('opacity-0');
                         img.classList.add('opacity-100');
-                        if (img.dataset.src) {
-                          setLoadedAvatars(prev => new Set(prev).add(img.dataset.src!));
-                        }
-                      }}
-                      onError={() => {
-                        setFailedAvatars(prev => new Set(prev).add(avatar.url));
-                      }}
-                    />
-                  )}
+                      }
+                    }}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      const src = img.src || img.dataset.src || avatar.url;
+                      setFailedAvatars(prev => new Set(prev).add(src));
+                    }}
+                  />
                   
                   {isCurrent && (
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
