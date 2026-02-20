@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useToast } from './Toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -49,6 +49,9 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
   const { user } = useAuth();
   const [selectedStyle, setSelectedStyle] = useState<string>(AVATAR_STYLES[0].name);
   const [saving, setSaving] = useState(false);
+  const [loadedAvatars, setLoadedAvatars] = useState<Set<string>>(new Set());
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Verifica se o estilo selecionado é premium
   const isPremiumStyle = AVATAR_STYLES.find(s => s.name === selectedStyle)?.premium ?? false;
@@ -60,6 +63,65 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
       seed,
     }));
   }, [selectedStyle]);
+
+  // Reset loaded/failed quando muda o estilo
+  useEffect(() => {
+    setLoadedAvatars(new Set());
+    setFailedAvatars(new Set());
+  }, [selectedStyle]);
+
+  // Preload das primeiras 8 imagens imediatamente
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const preloadImages = avatars.slice(0, 8);
+    preloadImages.forEach(avatar => {
+      const img = new Image();
+      img.onload = () => {
+        setLoadedAvatars(prev => new Set(prev).add(avatar.url));
+      };
+      img.onerror = () => {
+        setFailedAvatars(prev => new Set(prev).add(avatar.url));
+      };
+      img.src = avatar.url;
+    });
+  }, [isOpen, avatars]);
+
+  // Lazy load usando Intersection Observer
+  useEffect(() => {
+    if (!isOpen) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target as HTMLImageElement;
+            const src = img.dataset.src;
+            if (src && !loadedAvatars.has(src) && !failedAvatars.has(src)) {
+              const imageLoader = new Image();
+              imageLoader.onload = () => {
+                img.src = src;
+                setLoadedAvatars(prev => new Set(prev).add(src));
+              };
+              imageLoader.onerror = () => {
+                setFailedAvatars(prev => new Set(prev).add(src));
+              };
+              imageLoader.src = src;
+              observerRef.current?.unobserve(img);
+            }
+          }
+        });
+      },
+      { rootMargin: '50px' }
+    );
+
+    const images = document.querySelectorAll('img[data-src]');
+    images.forEach(img => observerRef.current?.observe(img));
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [isOpen, avatars, loadedAvatars, failedAvatars]);
 
   const handleSelectAvatar = useCallback(async (avatarUrl: string) => {
     if (!user) {
@@ -159,6 +221,10 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
             {avatars.map((avatar, index) => {
               const isCurrent = currentAvatar === avatar.url;
+              const isLoaded = loadedAvatars.has(avatar.url);
+              const hasFailed = failedAvatars.has(avatar.url);
+              const shouldPreload = index < 8; // Primeiras 8 carregam imediatamente
+              
               return (
                 <button
                   key={`${selectedStyle}-${avatar.seed}`}
@@ -182,11 +248,44 @@ function AvatarSelector({ isOpen, onClose, currentAvatar, onAvatarSelected }: Av
                       : 'Clique para selecionar'
                   }
                 >
-                  <img
-                    src={avatar.url}
-                    alt={`Avatar ${index + 1}`}
-                    className={`w-full h-full object-cover ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
-                  />
+                  {/* Loading state */}
+                  {!isLoaded && !hasFailed && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-700/50 animate-pulse">
+                      <div className="w-6 h-6 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                  
+                  {/* Error state */}
+                  {hasFailed && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-800/80">
+                      <span className="text-slate-500 text-xs">?</span>
+                    </div>
+                  )}
+                  
+                  {/* Image */}
+                  {(isLoaded || shouldPreload) && (
+                    <img
+                      src={shouldPreload ? avatar.url : undefined}
+                      data-src={!shouldPreload ? avatar.url : undefined}
+                      alt={`Avatar ${index + 1}`}
+                      className={`w-full h-full object-cover transition-opacity duration-300 ${
+                        isLoaded ? 'opacity-100' : 'opacity-0'
+                      } ${isPremiumStyle ? 'grayscale-[30%]' : ''}`}
+                      loading={shouldPreload ? 'eager' : 'lazy'}
+                      onLoad={(e) => {
+                        const img = e.currentTarget;
+                        img.classList.remove('opacity-0');
+                        img.classList.add('opacity-100');
+                        if (img.dataset.src) {
+                          setLoadedAvatars(prev => new Set(prev).add(img.dataset.src!));
+                        }
+                      }}
+                      onError={() => {
+                        setFailedAvatars(prev => new Set(prev).add(avatar.url));
+                      }}
+                    />
+                  )}
+                  
                   {isCurrent && (
                     <div className="absolute inset-0 flex items-center justify-center bg-blue-500/20">
                       <span className="text-blue-300 text-xs font-bold">✓</span>
