@@ -424,9 +424,9 @@ body {
   .zoom-slider-vertical {
     writing-mode: vertical-lr;
     direction: rtl;
-    height: 120px;
-    width: 32px; /* Largura maior para melhor toque */
-    padding: 8px 0; /* Padding para área de toque maior */
+    height: 80px; /* Reduzido de 120px para ser mais compacto */
+    width: 28px; /* Reduzido de 32px para ser mais compacto */
+    padding: 4px 0; /* Reduzido de 8px para ser mais compacto */
     margin: 0;
     touch-action: manipulation; /* Remove delay de 300ms e previne scroll acidental */
     cursor: grab;
