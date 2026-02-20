@@ -829,7 +829,7 @@ export default function NotesList({ folderId, folderName, isOpen, onClose, onTas
                       ? 'hover:opacity-90' 
                       : 'bg-slate-700/30 hover:bg-slate-700/50'
                   }`}
-                  style={hasColor ? {
+                  style={hasColor && task.color ? {
                     backgroundColor: task.color,
                     opacity: 0.9
                   } : undefined}
