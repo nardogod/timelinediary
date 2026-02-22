@@ -155,6 +155,7 @@ export async function createFolder(folderData: {
     user_id: folderData.user_id,
     name: folderData.name.trim(),
     color: folderData.color,
+    folder_type: null,
     created_at: new Date().toISOString(),
   };
 
