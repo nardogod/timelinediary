@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Plus, Check, ChevronDown, ChevronUp, FileText, List, Palette, Trash2, MoreVertical } from 'lucide-react';
 import { Task, NoteList } from '@/lib/db/types';
 import { useToast } from './Toast';
+import { LevelUpEffect, type LevelUpPayload } from './game/LevelUpEffect';
+import { DeathModal } from './game/DeathModal';
 
 interface NotesListProps {
   folderId: string;
@@ -48,6 +50,8 @@ export default function NotesList({ folderId, folderName, isOpen, onClose, onTas
   const [editColor, setEditColor] = useState<string>('');
   const [editNoteListId, setEditNoteListId] = useState<string | null>(null);
   const [showListsMenu, setShowListsMenu] = useState(false);
+  const [levelUpPayload, setLevelUpPayload] = useState<LevelUpPayload | null>(null);
+  const [showDeathModal, setShowDeathModal] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
 
@@ -293,6 +297,16 @@ export default function NotesList({ folderId, folderName, isOpen, onClose, onTas
       if (updatedTask.completed) {
         setTasks(prev => prev.filter(t => t.id !== task.id));
         showToast('Tarefa concluída! Adicionada à timeline.', 'success');
+        if (updatedTask.game?.died) {
+          setShowDeathModal(true);
+        } else if (updatedTask.game?.levelUp && updatedTask.game?.newLevel != null) {
+          setLevelUpPayload({
+            levelUp: true,
+            newLevel: updatedTask.game.newLevel,
+            previousLevel: updatedTask.game.previousLevel,
+            xpEarned: updatedTask.game.xpEarned,
+          });
+        }
         onTaskCompleted?.();
       } else {
         // Se foi desmarcada como concluída, adiciona de volta à lista
@@ -430,7 +444,19 @@ export default function NotesList({ folderId, folderName, isOpen, onClose, onTas
   const isListColorLight = hasListColor ? isLightColor(listColor) : false;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <>
+      <LevelUpEffect
+        payload={levelUpPayload}
+        onClose={() => setLevelUpPayload(null)}
+      />
+      <DeathModal
+        open={showDeathModal}
+        onClose={() => {
+          setShowDeathModal(false);
+          onTaskCompleted?.();
+        }}
+      />
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-2xl max-h-[90vh] bg-slate-800 rounded-lg shadow-xl flex flex-col m-4">
         {/* Header */}
         <div 
@@ -1023,5 +1049,6 @@ export default function NotesList({ folderId, folderName, isOpen, onClose, onTas
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -1,7 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { createEvent, getEventsByUserId, createMultipleEvents } from '@/lib/db/events';
-import { generateRecurringDates, RecurringEventConfig, DayOfWeek } from '@/lib/recurringEvents';
+import { createEvent, getEventsByUserId, createMultipleEvents, updateEvent, getEventById } from '@/lib/db/events';
+import { createTask, updateTask } from '@/lib/db/tasks';
+import { getFolderById } from '@/lib/db/folders';
+import { recordTaskCompletedForGame } from '@/lib/db/game';
+import { generateRecurringDates, DayOfWeek } from '@/lib/recurringEvents';
+
+/** Retorna YYYY-MM-DD em timezone local. */
+function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Para evento com pasta e data vigente/passada: cria tarefa, marca concluída, vincula e aplica recompensa Meu Mundo. Retorna payload de jogo (levelUp, xpEarned, etc.) se houver. */
+async function applyRewardIfPastOrToday(
+  userId: string,
+  event: { id: string; title: string; date: string; type: string; folder_id: string | null }
+): Promise<{ levelUp?: boolean; newLevel?: number; previousLevel?: number; xpEarned?: number; died?: boolean } | undefined> {
+  if (!event.folder_id) return undefined;
+  const today = todayLocal();
+  if (event.date > today) return undefined;
+
+  const titleWithoutTime = event.title.replace(/ - \d{2}:\d{2}$/, '').trim() || event.title;
+  const task = await createTask({
+    user_id: userId,
+    folder_id: event.folder_id,
+    title: titleWithoutTime,
+  });
+  if (!task) return undefined;
+
+  await updateTask(task.id, { completed: true });
+  await updateEvent(event.id, { task_id: task.id });
+
+  const folder = await getFolderById(event.folder_id);
+  const timeStr = event.title.match(/ - (\d{2}:\d{2})$/)?.[1] ?? null;
+  try {
+    const result = await recordTaskCompletedForGame(userId, task.id, {
+      scheduled_date: event.date,
+      scheduled_time: timeStr,
+      folder_type: folder?.folder_type ?? undefined,
+      event_importance: event.type,
+    });
+    if (result.ok && (result.levelUp || result.xpEarned != null || result.died)) {
+      return {
+        levelUp: result.levelUp,
+        newLevel: result.newLevel,
+        previousLevel: result.previousLevel,
+        xpEarned: result.xpEarned,
+        died: result.died,
+      };
+    }
+  } catch (e) {
+    console.error('[events POST] recordTaskCompletedForGame', e);
+  }
+  return undefined;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -112,7 +168,13 @@ export async function POST(request: NextRequest) {
     if (!event) {
       return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
     }
-    return NextResponse.json(event);
+
+    // Data vigente ou passada: já considerar concluído e aplicar recompensa (XP, moedas, etc.)
+    const gamePayload = await applyRewardIfPastOrToday(userId, event);
+    const finalEvent = await getEventById(event.id);
+    const response: Record<string, unknown> = { ...(finalEvent ?? event) };
+    if (gamePayload) response.game = gamePayload;
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error creating event:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

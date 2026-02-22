@@ -17,10 +17,10 @@ export const PROFILE_AVATARS: ProfileAvatarOption[] = AVATAR_IDS.map((n) => ({
   name: `Personagem ${n}`,
 }));
 
-export const DEFAULT_AVATAR_ID = 'personagem1';
-export const DEFAULT_AVATAR_PATH = '/game/assets/avatar/personagem1.png';
+export const DEFAULT_AVATAR_ID = 'personagem9';
+export const DEFAULT_AVATAR_PATH = '/game/assets/avatar/personagem9.png';
 
 export function getAvatarByPath(path: string | null): ProfileAvatarOption | undefined {
-  if (!path) return PROFILE_AVATARS[0];
-  return PROFILE_AVATARS.find((a) => a.path === path) ?? PROFILE_AVATARS[0];
+  if (!path) return PROFILE_AVATARS.find((a) => a.id === DEFAULT_AVATAR_ID) ?? PROFILE_AVATARS[0];
+  return PROFILE_AVATARS.find((a) => a.path === path) ?? PROFILE_AVATARS.find((a) => a.id === DEFAULT_AVATAR_ID) ?? PROFILE_AVATARS[0];
 }

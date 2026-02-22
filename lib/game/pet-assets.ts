@@ -22,37 +22,22 @@ export interface PetOption {
   spritePath: string;
   /** ms por quadro (opcional); se não definir, usa o padrão na animação */
   frameMs?: number;
+  /** Porcentagem a menos de stress ao concluir atividade (anti-stress). Ex: 10 = 10% menos stress. */
+  stressReductionPercent?: number;
+  /** Preço em moedas na loja (diferença entre pets). Se omitido, usa preço padrão. */
+  price?: number;
   /** 1 = imagem única; 2 = tira 2 quadros; 4 = sprite 4 quadros. Default 4. */
   spriteFrames?: 1 | 2 | 4;
   /** Layout: "2x2" (grid 4 quadros), "1x4" (tira horizontal 4), "2x1" (tira vertical 2). Default "2x2". */
   spriteGrid?: "2x2" | "1x4" | "2x1";
 }
 
+/** Preços 5× e depois 12× (rebalanceamento). */
 export const PETS: PetOption[] = [
-  {
-    id: "pet1",
-    name: "Cachorrinho",
-    spritePath: `${PETS_PUBLIC_PATH}/pet1.png`,
-    frameMs: 400,
-  },
-  {
-    id: "pet2",
-    name: "Pet 2",
-    spritePath: `${PETS_PUBLIC_PATH}/pet2.png`,
-    frameMs: 3500,
-  },
-  {
-    id: "pet3",
-    name: "Gato",
-    spritePath: `${PETS_PUBLIC_PATH}/pet3.png`,
-    frameMs: 3000,
-  },
-  {
-    id: "pet5",
-    name: "Coruja",
-    spritePath: `${PETS_PUBLIC_PATH}/pet5.png`,
-    frameMs: 400,
-  },
+  { id: "pet1", name: "Cachorrinho", spritePath: `${PETS_PUBLIC_PATH}/pet1.png`, frameMs: 400, stressReductionPercent: 5, price: 4800 },
+  { id: "pet2", name: "Pet 2", spritePath: `${PETS_PUBLIC_PATH}/pet2.png`, frameMs: 3500, stressReductionPercent: 10, price: 7200 },
+  { id: "pet3", name: "Gato", spritePath: `${PETS_PUBLIC_PATH}/pet3.png`, frameMs: 3000, stressReductionPercent: 8, price: 6000 },
+  { id: "pet5", name: "Coruja", spritePath: `${PETS_PUBLIC_PATH}/pet5.png`, frameMs: 400, stressReductionPercent: 12, price: 9000 },
 ];
 
 export const DEFAULT_PET_ID = "pet1";
@@ -77,4 +62,10 @@ export function getPetSpriteFrames(petId: string | null): 1 | 2 | 4 {
 export function getPetSpriteGrid(petId: string | null): "2x2" | "1x4" | "2x1" {
   const pet = PETS.find((p) => p.id === (petId ?? DEFAULT_PET_ID));
   return pet?.spriteGrid ?? "2x2";
+}
+
+/** Porcentagem a menos de stress ao concluir tarefa (0 se sem pet ou sem valor). */
+export function getPetStressReductionPercent(petId: string | null): number {
+  const pet = PETS.find((p) => p.id === (petId ?? DEFAULT_PET_ID));
+  return pet?.stressReductionPercent ?? 0;
 }

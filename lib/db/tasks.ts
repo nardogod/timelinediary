@@ -211,6 +211,30 @@ export async function getCompletedTasksCountThisWeek(userId: string): Promise<nu
   return row ? Number(row.count) : 0;
 }
 
+/** Retorna datas distintas (YYYY-MM-DD) em que o usuário concluiu pelo menos uma tarefa (para medalhas). */
+export async function getDistinctCompletedTaskDates(userId: string): Promise<string[]> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT DISTINCT to_char(completed_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as d
+    FROM tasks
+    WHERE user_id = ${userId}
+      AND completed = true
+      AND completed_at IS NOT NULL
+    ORDER BY d
+  `;
+  return (rows as Record<string, unknown>[]).map((r) => String(r.d));
+}
+
+/** Total de tarefas já concluídas pelo usuário (para missões). */
+export async function getCompletedTasksCountTotal(userId: string): Promise<number> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT COUNT(*) as count FROM tasks WHERE user_id = ${userId} AND completed = true AND completed_at IS NOT NULL
+  `;
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? Number(row.count) : 0;
+}
+
 /** Pendentes por folder_id para um usuário: Map<folderId, count> */
 export async function getPendingCountByFolder(userId: string): Promise<Map<string, number>> {
   const sql = getNeon();

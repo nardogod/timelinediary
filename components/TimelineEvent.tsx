@@ -187,6 +187,12 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
           showToast('Sessão expirada. Faça login novamente.', 'error');
           return;
         }
+        if (res.status === 404) {
+          showToast('Evento já foi removido.', 'success');
+          onEventDeleted?.();
+          onTaskEdited?.();
+          return;
+        }
         
         console.error('Failed to delete event:', res.status, errorMessage);
         throw new Error(errorMessage);

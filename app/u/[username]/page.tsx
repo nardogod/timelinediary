@@ -31,7 +31,7 @@ import MeuMundoButton from '@/components/MeuMundoButton';
 
 type ApiUser = { id: string; username: string; name: string; avatar: string | null };
 type ApiEvent = { id: string; user_id: string; title: string; date: string; end_date: string | null; type: string; link: string | null; folder_id: string | null; task_id?: string | null };
-type ApiFolder = { id: string; user_id: string; name: string; color: string; created_at: string };
+type ApiFolder = { id: string; user_id: string; name: string; color: string; created_at: string; is_private?: boolean };
 
 interface PageProps {
   params: Promise<{ username: string }>;
@@ -103,7 +103,12 @@ export default function UserTimelinePage(props: PageProps) {
 
     const events: ApiEvent[] = eventsRes.ok ? await eventsRes.json() : [];
     const apiFolders: ApiFolder[] = foldersRes.ok ? await foldersRes.json() : [];
-    
+    const isOwner = currentUser && currentUser.id === user.id;
+    const publicFolderIds = new Set(apiFolders.filter((f) => !f.is_private).map((f) => f.id));
+
+    // Para visitantes: só eventos sem pasta ou de pasta pública
+    const eventsForView = isOwner ? events : events.filter((e) => !e.folder_id || publicFolderIds.has(e.folder_id));
+
     // Processa estatísticas de tarefas concluídas
     if (tasksStatsRes.ok) {
       const tasksStats = await tasksStatsRes.json();
@@ -142,7 +147,7 @@ export default function UserTimelinePage(props: PageProps) {
       } catch {}
       return str; // Fallback
     };
-    const mappedEvents: MockEvent[] = events.map((e) => ({
+    const mappedEvents: MockEvent[] = eventsForView.map((e) => ({
       id: e.id,
       userId: e.user_id,
       title: e.title,
@@ -185,7 +190,7 @@ export default function UserTimelinePage(props: PageProps) {
     }
 
     setFolders(
-      apiFolders.map((f) => ({
+      (isOwner ? apiFolders : apiFolders.filter((f) => !f.is_private)).map((f) => ({
         id: f.id,
         userId: f.user_id,
         name: f.name,
@@ -344,8 +349,9 @@ export default function UserTimelinePage(props: PageProps) {
     if (!user) return;
     const foldersRes = await fetch(`/api/folders?userId=${user.id}`);
     const apiFolders: ApiFolder[] = foldersRes.ok ? await foldersRes.json() : [];
+    const isOwner = currentUser && currentUser.id === user.id;
     setFolders(
-      apiFolders.map((f) => ({
+      (isOwner ? apiFolders : apiFolders.filter((f) => !f.is_private)).map((f) => ({
         id: f.id,
         userId: f.user_id,
         name: f.name,
@@ -358,7 +364,7 @@ export default function UserTimelinePage(props: PageProps) {
       setSelectedFolder(null);
       showToast('Pasta removida. Filtro resetado.', 'info');
     }
-  }, [user, selectedFolder, showToast]);
+  }, [user, currentUser, selectedFolder, showToast]);
 
   const handleSettingsChange = useCallback(() => {
     // Recarrega settings quando há mudança

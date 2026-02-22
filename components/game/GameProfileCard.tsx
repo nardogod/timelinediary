@@ -5,12 +5,11 @@ import { getBadgesInOrder, hasUnlockedNextTier, type BadgeDef } from '@/lib/game
 import { PROFILE_COVERS, getCoverById } from '@/lib/game/profile-covers';
 import {
   AVATAR_DISPLAY_SIZE_PX,
-  AVATAR_RECOMMENDED_LABEL,
-  AVATAR_RECOMMENDED_OPTIONS,
   COVER_RECOMMENDED_LABEL,
 } from '@/lib/game/profile-asset-resolutions';
 import { PROFILE_AVATARS, DEFAULT_AVATAR_PATH } from '@/lib/game/profile-avatars';
-import { PETS, DEFAULT_PET_ID } from '@/lib/game/pet-assets';
+import { PETS, DEFAULT_PET_ID, getPetStressReductionPercent } from '@/lib/game/pet-assets';
+import { getCoverBonus } from '@/lib/game/cover-bonuses';
 import type { GameProfile } from '@/lib/db/game-types';
 import Image from 'next/image';
 import PetAnimation from '@/components/game/PetAnimation';
@@ -25,6 +24,10 @@ type GameProfileCardProps = {
   onCoverPositionChange?: (positionY: number) => void;
   onAvatarChange?: (avatarPath: string) => void;
   onPetChange?: (petId: string) => void;
+  /** Se definido, só exibe itens possuídos nos seletores (loja). */
+  ownedCoverIds?: string[];
+  ownedAvatarIds?: string[];
+  ownedPetIds?: string[];
 };
 
 export default function GameProfileCard({
@@ -34,6 +37,9 @@ export default function GameProfileCard({
   onCoverPositionChange,
   onAvatarChange,
   onPetChange,
+  ownedCoverIds,
+  ownedAvatarIds,
+  ownedPetIds,
 }: GameProfileCardProps) {
   const badgesInOrder = useMemo(() => getBadgesInOrder(), []);
   const earnedSet = useMemo(
@@ -44,17 +50,81 @@ export default function GameProfileCard({
     () => hasUnlockedNextTier(profile?.earned_badge_ids ?? []),
     [profile?.earned_badge_ids]
   );
-  const cover = getCoverById(profile?.cover_id ?? null);
+  const coverById = getCoverById(profile?.cover_id ?? null);
+  const cover =
+    coverById && (!ownedCoverIds || ownedCoverIds.includes(profile?.cover_id ?? ''))
+      ? coverById
+      : null;
   const avatarUrl = profile?.avatar_image_url ?? null;
-  const avatarDisplayUrl = avatarUrl || DEFAULT_AVATAR_PATH;
+  const avatarOption = PROFILE_AVATARS.find((a) => a.path === (avatarUrl || DEFAULT_AVATAR_PATH));
+  const canShowAvatar = !ownedAvatarIds || (avatarOption && ownedAvatarIds.includes(avatarOption.id));
+  const avatarDisplayUrl = canShowAvatar ? (avatarUrl || DEFAULT_AVATAR_PATH) : DEFAULT_AVATAR_PATH;
   const coverPositionY = Math.max(0, Math.min(100, profile?.cover_position_y ?? 50));
+
+  const coversToShow = useMemo(
+    () =>
+      ownedCoverIds && ownedCoverIds.length > 0
+        ? PROFILE_COVERS.filter((c) => ownedCoverIds.includes(c.id))
+        : [PROFILE_COVERS[0]],
+    [ownedCoverIds]
+  );
+  const avatarsToShow = useMemo(
+    () =>
+      ownedAvatarIds && ownedAvatarIds.length > 0
+        ? PROFILE_AVATARS.filter((a) => ownedAvatarIds.includes(a.id))
+        : PROFILE_AVATARS.filter((a) => a.id === 'personagem9'),
+    [ownedAvatarIds]
+  );
+  const petsToShow = useMemo(
+    () =>
+      ownedPetIds === undefined
+        ? PETS
+        : ownedPetIds.length > 0
+          ? PETS.filter((p) => ownedPetIds.includes(p.id))
+          : [],
+    [ownedPetIds]
+  );
 
   const [badgeModal, setBadgeModal] = useState<BadgeDef | null>(null);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [petPickerOpen, setPetPickerOpen] = useState(false);
   const [badgesExpanded, setBadgesExpanded] = useState(false);
-  const selectedPetId = profile?.pet_id ?? DEFAULT_PET_ID;
+  const selectedPetId =
+    ownedPetIds === undefined
+      ? (profile?.pet_id ?? DEFAULT_PET_ID)
+      : profile?.pet_id && ownedPetIds.includes(profile.pet_id)
+        ? profile.pet_id
+        : null;
+
+  const activeBonuses = useMemo(() => {
+    const list: { label: string; detail: string }[] = [];
+    const coverBonus = getCoverBonus(profile?.cover_id ?? null);
+    const hasCoverBonus =
+      (coverBonus.xp_percent ?? 0) > 0 ||
+      (coverBonus.coins_percent ?? 0) > 0 ||
+      (coverBonus.stress_reduce_percent ?? 0) > 0 ||
+      (coverBonus.health_extra ?? 0) > 0;
+    if (coverById && coverById.id !== 'default' && hasCoverBonus) {
+      const parts: string[] = [];
+      if (coverBonus.xp_percent) parts.push(`+${coverBonus.xp_percent}% XP`);
+      if (coverBonus.coins_percent) parts.push(`+${coverBonus.coins_percent}% €`);
+      if (coverBonus.stress_reduce_percent) parts.push(`−${coverBonus.stress_reduce_percent}% stress`);
+      if (coverBonus.health_extra) parts.push(`+${coverBonus.health_extra} saúde`);
+      if (parts.length) list.push({ label: 'Capa', detail: parts.join(', ') });
+    }
+    if (selectedPetId) {
+      const pet = PETS.find((p) => p.id === selectedPetId);
+      const stressRed = getPetStressReductionPercent(selectedPetId);
+      if (pet || stressRed > 0) {
+        const parts: string[] = [];
+        if (stressRed > 0) parts.push(`−${stressRed}% stress`);
+        parts.push('+10% €');
+        list.push({ label: pet?.name ?? 'Pet', detail: parts.join(', ') });
+      }
+    }
+    return list;
+  }, [profile?.cover_id, coverById, selectedPetId]);
 
   return (
     <section className="rounded-xl bg-slate-800/80 p-4 space-y-3 overflow-visible">
@@ -163,18 +233,72 @@ export default function GameProfileCard({
         </div>
       </div>
 
-      {/* Resoluções recomendadas: capa e foto (usuário pode escolher tamanho da foto) */}
-      <details className="text-xs text-slate-500">
-        <summary className="cursor-pointer hover:text-slate-400">Resoluções recomendadas (pixel art)</summary>
-        <ul className="mt-1.5 space-y-1 list-disc list-inside">
-          <li>Capa: <strong className="text-slate-400">{COVER_RECOMMENDED_LABEL}</strong></li>
-          <li>Foto de perfil: <strong className="text-slate-400">{AVATAR_RECOMMENDED_LABEL}</strong> — você pode usar {AVATAR_RECOMMENDED_OPTIONS.map((o) => o.label).join(' ou ')}</li>
-        </ul>
-      </details>
+      {/* Medalhas — acima da linha do pet (no lugar das resoluções recomendadas) */}
+      <div className="flex-shrink-0">
+        {!badgesExpanded ? (
+          <button
+            type="button"
+            onClick={() => setBadgesExpanded(true)}
+            className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/80 hover:bg-slate-700/80 px-3 py-2 text-left transition-colors"
+            aria-expanded="false"
+            aria-label="Ver medalhas"
+          >
+            <span className="text-xl">🏆</span>
+            <span className="text-sm font-medium text-slate-300">Medalhas</span>
+            <span className="text-slate-500 text-xs">
+              {earnedSet.size}/{badgesInOrder.length}
+            </span>
+          </button>
+        ) : (
+          <div
+            className="rounded-lg border border-slate-600 bg-slate-800/60 p-2"
+            role="region"
+            aria-label="Medalhas expandido"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="text-sm font-medium text-slate-300">Medalhas</h3>
+              <button
+                type="button"
+                onClick={() => setBadgesExpanded(false)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-700"
+                aria-label="Fechar medalhas"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {badgesInOrder.map((badge) => {
+                const isNextTier = badge.id === 'proximo_nivel';
+                const earned =
+                  earnedSet.has(badge.id) || (isNextTier && nextTierUnlocked);
+                return (
+                  <button
+                    key={badge.id}
+                    type="button"
+                    onClick={() => setBadgeModal(badge)}
+                    className={`
+                      w-8 h-8 flex items-center justify-center rounded-md border transition-colors
+                      ${earned
+                        ? 'bg-amber-500/20 border-amber-500/50 hover:bg-amber-500/30 text-base'
+                        : 'bg-slate-800/80 border-slate-600 hover:bg-slate-700/80 text-base opacity-70'}
+                    `}
+                    title={`${badge.name} — ${earned ? badge.description : badge.requirement}`}
+                  >
+                    {earned ? badge.icon : '?'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {coverPickerOpen && (
         <div className="flex flex-wrap gap-2 p-2 rounded-lg bg-slate-900/80">
-          {PROFILE_COVERS.map((c) => (
+          {coversToShow.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">Nenhuma capa. Compre na Loja.</p>
+          ) : (
+          coversToShow.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -210,7 +334,8 @@ export default function GameProfileCard({
                 </>
               )}
             </button>
-          ))}
+          ))
+          )}
         </div>
       )}
 
@@ -229,7 +354,10 @@ export default function GameProfileCard({
             </button>
           </div>
           <div className="game-profile-avatar-picker grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-48 overflow-y-auto">
-            {PROFILE_AVATARS.map((av) => (
+            {avatarsToShow.length === 0 ? (
+              <p className="text-sm text-slate-500 col-span-full py-2">Nenhum avatar. Compre na Loja.</p>
+            ) : (
+            avatarsToShow.map((av) => (
               <button
                 key={av.id}
                 type="button"
@@ -253,7 +381,8 @@ export default function GameProfileCard({
                   unoptimized
                 />
               </button>
-            ))}
+            ))
+            )}
           </div>
         </div>
       )}
@@ -261,7 +390,10 @@ export default function GameProfileCard({
       {/* Seletor de pet (mesmo padrão visual do seletor de capa) */}
       {petPickerOpen && onPetChange && (
         <div className="flex flex-wrap gap-2 p-2 rounded-lg bg-slate-900/80">
-          {PETS.map((pet) => (
+          {petsToShow.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">Nenhum pet. Compre na Loja.</p>
+          ) : (
+          petsToShow.map((pet) => (
             <button
               key={pet.id}
               type="button"
@@ -286,88 +418,34 @@ export default function GameProfileCard({
                 aria-hidden
               />
             </button>
-          ))}
+          ))
+          )}
         </div>
       )}
 
-      {/* Esquerda: medalhas. Centro: pet. Direita: 6 slots de itens anti-stress. */}
-      <div className="flex gap-3 items-stretch">
-        {/* Medalhas — canto esquerdo */}
-        <div className="flex-shrink-0">
-          {!badgesExpanded ? (
-            <button
-              type="button"
-              onClick={() => setBadgesExpanded(true)}
-              className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/80 hover:bg-slate-700/80 px-3 py-2 text-left transition-colors"
-              aria-expanded="false"
-              aria-label="Ver medalhas"
-            >
-              <span className="text-xl">🏆</span>
-              <span className="text-sm font-medium text-slate-300">Medalhas</span>
-              <span className="text-slate-500 text-xs">
-                {earnedSet.size}/{badgesInOrder.length}
-              </span>
-            </button>
-          ) : (
-            <div
-              className="rounded-lg border border-slate-600 bg-slate-800/60 p-2"
-              role="region"
-              aria-label="Medalhas expandido"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-sm font-medium text-slate-300">Medalhas</h3>
-                <button
-                  type="button"
-                  onClick={() => setBadgesExpanded(false)}
-                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-700"
-                  aria-label="Fechar medalhas"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {badgesInOrder.map((badge) => {
-                  const isNextTier = badge.id === 'proximo_nivel';
-                  const earned =
-                    earnedSet.has(badge.id) || (isNextTier && nextTierUnlocked);
-                  return (
-                    <button
-                      key={badge.id}
-                      type="button"
-                      onClick={() => setBadgeModal(badge)}
-                      className={`
-                        w-8 h-8 flex items-center justify-center rounded-md border transition-colors
-                        ${earned
-                          ? 'bg-amber-500/20 border-amber-500/50 hover:bg-amber-500/30 text-base'
-                          : 'bg-slate-800/80 border-slate-600 hover:bg-slate-700/80 text-base opacity-70'}
-                      `}
-                      title={`${badge.name} — ${earned ? badge.description : badge.requirement}`}
-                    >
-                      {earned ? badge.icon : '?'}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-        {/* Centro: pet animado — área clicável para trocar (mesmo padrão da capa) */}
+      {/* Linha: pet (área fixa) + Anti-stress itens */}
+      <div className="flex gap-3 items-center">
+        {/* Pet — área fixa para não quebrar a imagem (maior) */}
         <div
-          className="flex-1 min-w-0 flex items-center justify-center rounded-lg border border-slate-600 bg-slate-800/80 min-h-[88px] cursor-pointer group relative"
+          className="flex-shrink-0 w-[120px] h-[120px] flex items-center justify-center rounded-lg border border-slate-600 bg-slate-800/80 cursor-pointer group relative"
           onClick={() => onPetChange && setPetPickerOpen((v) => !v)}
           role={onPetChange ? 'button' : undefined}
           tabIndex={onPetChange ? 0 : undefined}
           onKeyDown={(e) => onPetChange && e.key === 'Enter' && setPetPickerOpen((v) => !v)}
           aria-label={onPetChange ? 'Escolher pet' : undefined}
         >
-          <PetAnimation petId={selectedPetId} />
+          {selectedPetId ? (
+            <PetAnimation petId={selectedPetId} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Pet</div>
+          )}
           {onPetChange && (
             <span className="absolute bottom-1 right-2 text-xs text-white/70 group-hover:text-white" title="Trocar pet">
               Trocar pet
             </span>
           )}
         </div>
-        {/* Direita: 6 slots — Anti-stress itens (3 acima, 3 abaixo) */}
+        {/* Anti-stress itens */}
         <div className="flex-shrink-0 flex flex-col gap-1">
           <p className="text-xs font-medium text-slate-400 mb-0.5">Anti-stress itens</p>
           <div className="grid grid-cols-3 gap-1">
@@ -384,6 +462,24 @@ export default function GameProfileCard({
             ))}
           </div>
         </div>
+        {/* Bônus ativos (capa, pet) — discreto à direita */}
+        {activeBonuses.length > 0 && (
+          <div className="flex-shrink-0 min-w-0 max-w-[140px] flex flex-col gap-1.5">
+            <p className="text-xs font-medium text-slate-400 mb-0.5">Bônus ativos</p>
+            <div className="flex flex-col gap-1">
+              {activeBonuses.map(({ label, detail }) => (
+                <div
+                  key={label}
+                  className="rounded-md border border-slate-600/80 bg-slate-800/60 px-2 py-1.5"
+                  title={detail}
+                >
+                  <p className="text-xs font-medium text-emerald-400/90 truncate">{label}</p>
+                  <p className="text-[10px] text-slate-500 truncate leading-tight">{detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal: ao clicar na medalha (ganha ou não) mostra nome + o que fazer para ganhar */}

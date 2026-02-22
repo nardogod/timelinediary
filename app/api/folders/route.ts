@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, color, is_private } = body;
+    const { name, color, is_private, folder_type } = body;
     if (!name) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
     }
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       name,
       color: color || '#64748b',
       is_private: is_private ?? false,
+      folder_type: folder_type ?? undefined,
     });
 
     if (!folder) {
@@ -55,7 +56,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, color, is_private } = body;
+    const { id, name, color, is_private, folder_type } = body;
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
@@ -64,6 +65,7 @@ export async function PATCH(request: NextRequest) {
       name: name ?? undefined,
       color: color ?? undefined,
       is_private: is_private !== undefined ? is_private : undefined,
+      folder_type: folder_type !== undefined ? folder_type : undefined,
     });
     if (!updated) {
       return NextResponse.json({ error: 'Failed to update folder' }, { status: 404 });

@@ -68,6 +68,15 @@ export async function getEventById(eventId: string): Promise<Event | null> {
   return row ? rowToEvent(row) : null;
 }
 
+export async function getEventByTaskId(taskId: string): Promise<Event | null> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT * FROM events WHERE task_id = ${taskId} LIMIT 1
+  `;
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? rowToEvent(row) : null;
+}
+
 export async function createEvent(eventData: {
   user_id: string;
   title: string;

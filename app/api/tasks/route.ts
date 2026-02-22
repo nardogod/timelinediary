@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { getTasksByFolderId, getTasksByNoteListId, createTask, updateTask, deleteTask, getTaskById } from '@/lib/db/tasks';
-import { createEvent, getEventsByUserId, updateEvent } from '@/lib/db/events';
+import {
+  getTasksByFolderId,
+  getTasksByNoteListId,
+  createTask,
+  updateTask,
+  deleteTask,
+  getTaskById,
+} from '@/lib/db/tasks';
+import { createEvent, updateEvent, getEventByTaskId } from '@/lib/db/events';
 import { getFolderById } from '@/lib/db/folders';
 import { getNoteListById } from '@/lib/db/note-lists';
+import { recordTaskCompletedForGame } from '@/lib/db/game';
 
 export async function GET(request: NextRequest) {
   try {
@@ -205,12 +213,40 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to update task' }, { status: 404 });
     }
 
+    let gameResult: { levelUp?: boolean; newLevel?: number; previousLevel?: number; xpEarned?: number; died?: boolean } | undefined;
+    // Meu Mundo: ao marcar tarefa como concluída, registra atividade (recompensas conforme pasta + importância do evento)
+    if (completed === true && !task.completed && updated.completed) {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const folder = await getFolderById(task.folder_id);
+      const relatedEvent = await getEventByTaskId(id);
+      try {
+        const result = await recordTaskCompletedForGame(userId, id, {
+          scheduled_date: dateStr,
+          scheduled_time: timeStr,
+          folder_type: folder?.folder_type ?? undefined,
+          event_importance: relatedEvent?.type ?? undefined,
+        });
+        if (result.ok && (result.levelUp || result.xpEarned != null || result.died)) {
+          gameResult = {
+            levelUp: result.levelUp,
+            newLevel: result.newLevel,
+            previousLevel: result.previousLevel,
+            xpEarned: result.xpEarned,
+            died: result.died,
+          };
+        }
+      } catch (e) {
+        console.error('[tasks PATCH] recordTaskCompletedForGame', e);
+      }
+    }
+
     // Se a tarefa foi editada e está concluída, sempre atualiza o evento correspondente na timeline
     // Isso garante que mudanças no título apareçam na timeline imediatamente
     if (updated.completed && (title !== undefined || details !== undefined)) {
-      const events = await getEventsByUserId(userId);
-      const relatedEvent = events.find(e => e.task_id === id);
-      
+      const relatedEvent = await getEventByTaskId(id);
+
       if (relatedEvent) {
         // Preserva o horário do evento (formato "título - HH:MM")
         const timeMatch = relatedEvent.title.match(/ - (\d{2}:\d{2})$/);
@@ -223,7 +259,9 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(updated);
+    const response: Record<string, unknown> = { ...updated };
+    if (gameResult) response.game = gameResult;
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error updating task:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

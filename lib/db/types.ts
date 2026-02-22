@@ -9,12 +9,16 @@ export interface User {
   created_at: string;
 }
 
+export type FolderType = 'trabalho' | 'estudos' | 'lazer' | 'tarefas_pessoais';
+
 export interface Folder {
   id: string;
   user_id: string;
   name: string;
   color: string;
   is_private?: boolean;
+  /** Define recompensas ao concluir tarefa: trabalho (XP+moedas, -saúde, +stress), estudos, lazer, tarefas_pessoais */
+  folder_type: FolderType | null;
   created_at: string;
 }
 
