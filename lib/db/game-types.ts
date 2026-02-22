@@ -21,9 +21,9 @@ export interface GameProfile {
   earned_badge_ids: string[];
   /** Id do pet escolhido (ex: pet1, pet2; ver lib/game/pet-assets.ts) */
   pet_id: string | null;
-  /** Última data (YYYY-MM-DD) em que usou "Relaxar em casa" — 1x/dia */
+  /** Timestamp ISO do último uso de "Relaxar em casa" (cooldown 3h) */
   last_relax_at: string | null;
-  /** Data (YYYY-MM-DD) em que ativou o bônus "Trabalhar" — naquele dia: mais moedas, menos stress */
+  /** Timestamp ISO do último uso do bônus "Trabalhar" (cooldown 3h) */
   last_work_bonus_at: string | null;
   /** Casa ativa (ex: casa_1). Bônus ao relaxar varia por casa. */
   current_house_id: string | null;

@@ -17,6 +17,8 @@ function getTodayBrazil(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 }
 
+const COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 horas
+
 type RoomsData = {
   catalog: { house: HouseDef[]; work: unknown[] };
   owned: { house: string[]; work: string[] };
@@ -26,7 +28,7 @@ type RoomsData = {
 
 /**
  * Minha Casa — quartos do catálogo com benefícios, setas para trocar e botão comprar/ativar.
- * Ação diária: Relaxar em casa (1x/dia, reduz stress e aumenta saúde).
+ * Relaxar em casa: reduz stress e aumenta saúde. Cooldown 3h.
  */
 export default function CasaPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -91,19 +93,28 @@ export default function CasaPage() {
     }
   }, [user, authLoading, router, loadProfile, loadRooms]);
 
-  const todayBrazil = getTodayBrazil();
-  const alreadyRelaxedToday = profile?.last_relax_at === todayBrazil;
-  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownEndMs - Date.now()) / 1000));
+  const nextFromProfile = profile?.last_relax_at
+    ? new Date(profile.last_relax_at).getTime() + COOLDOWN_MS
+    : 0;
+  const effectiveCooldownEnd = Math.max(cooldownEndMs, nextFromProfile > Date.now() ? nextFromProfile : 0);
+  const cooldownSecondsLeft = Math.max(0, Math.ceil((effectiveCooldownEnd - Date.now()) / 1000));
   const inCooldown = cooldownSecondsLeft > 0;
 
   useEffect(() => {
-    if (cooldownEndMs <= 0) return;
+    if (profile?.last_relax_at) {
+      const next = new Date(profile.last_relax_at).getTime() + COOLDOWN_MS;
+      if (next > Date.now()) setCooldownEndMs(next);
+    }
+  }, [profile?.last_relax_at]);
+
+  useEffect(() => {
+    if (effectiveCooldownEnd <= 0) return;
     const t = setInterval(() => setCooldownTick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, [cooldownEndMs]);
+  }, [effectiveCooldownEnd]);
   useEffect(() => {
-    if (cooldownEndMs > 0 && cooldownSecondsLeft <= 0) setCooldownEndMs(0);
-  }, [cooldownEndMs, cooldownSecondsLeft]);
+    if (effectiveCooldownEnd > 0 && cooldownSecondsLeft <= 0) setCooldownEndMs(0);
+  }, [effectiveCooldownEnd, cooldownSecondsLeft]);
 
   const houses = roomsData?.catalog?.house ?? [];
   const currentHouse = houses[viewingIndex];
@@ -117,7 +128,7 @@ export default function CasaPage() {
   }, [houses.length, viewingIndex]);
 
   const handleRelax = useCallback(async () => {
-    if (alreadyRelaxedToday || relaxLoading || inCooldown) return;
+    if (relaxLoading || inCooldown) return;
     setRelaxError(null);
     setRelaxLoading(true);
     try {
@@ -125,12 +136,13 @@ export default function CasaPage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
         if (data.profile) setProfile(data.profile);
-        setCooldownEndMs(Date.now() + 10_000);
+        setCooldownEndMs(Date.now() + COOLDOWN_MS);
         return;
       }
       if (data?.error === 'already_used' || data?.message) {
-        setRelaxError(data?.message ?? 'Você já usou seu bônus hoje.');
+        setRelaxError(data?.message ?? 'Aguarde 3 horas entre um uso e outro.');
         if (data.profile) setProfile(data.profile);
+        if (data.next_available_at) setCooldownEndMs(new Date(data.next_available_at).getTime());
       } else {
         setRelaxError('Não foi possível relaxar. Tente de novo.');
       }
@@ -139,7 +151,7 @@ export default function CasaPage() {
     } finally {
       setRelaxLoading(false);
     }
-  }, [alreadyRelaxedToday, relaxLoading, inCooldown]);
+  }, [relaxLoading, inCooldown]);
 
   const handlePrev = useCallback(() => {
     setViewingIndex((i) => (i <= 0 ? houses.length - 1 : i - 1));
@@ -324,12 +336,16 @@ export default function CasaPage() {
         )}
 
         <section className="mt-4 w-full max-w-[min(100%,400px)] rounded-xl bg-slate-800/80 p-4">
-          <h2 className="text-sm font-medium text-slate-300 mb-2">Ação diária</h2>
-          {alreadyRelaxedToday ? (
-            <p className="text-amber-300/90 text-sm">Você já usou seu bônus hoje.</p>
-          ) : inCooldown ? (
+          <h2 className="text-sm font-medium text-slate-300 mb-2">Relaxar (cooldown 3h)</h2>
+          {inCooldown ? (
             <p className="text-slate-400 text-sm text-center">
-              Disponível em <strong className="text-white">{cooldownSecondsLeft}</strong> s
+              Próximo uso em <strong className="text-white">
+                {cooldownSecondsLeft >= 3600
+                  ? `${Math.floor(cooldownSecondsLeft / 3600)}h ${Math.floor((cooldownSecondsLeft % 3600) / 60)}min`
+                  : cooldownSecondsLeft >= 60
+                    ? `${Math.floor(cooldownSecondsLeft / 60)}min`
+                    : `${cooldownSecondsLeft}s`}
+              </strong>
             </p>
           ) : (
             <>

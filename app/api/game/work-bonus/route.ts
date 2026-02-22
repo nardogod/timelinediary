@@ -16,7 +16,11 @@ export async function POST() {
     if (!result.ok) {
       if (result.error === 'already_used') {
         return NextResponse.json(
-          { error: 'already_used', message: 'Você já usou seu bônus hoje.' },
+          {
+            error: 'already_used',
+            message: 'Aguarde 3 horas entre um uso e outro.',
+            next_available_at: result.next_available_at,
+          },
           { status: 400 }
         );
       }

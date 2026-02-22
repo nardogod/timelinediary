@@ -44,8 +44,8 @@ function rowToGameProfile(row: Record<string, unknown>): GameProfile {
     cover_position_y: row.cover_position_y != null ? Number(row.cover_position_y) : 50,
     earned_badge_ids: parseEarnedBadges(earnedBadgesRaw),
     pet_id: row.pet_id != null ? String(row.pet_id) : null,
-    last_relax_at: row.last_relax_at != null ? String(row.last_relax_at).slice(0, 10) : null,
-    last_work_bonus_at: row.last_work_bonus_at != null ? String(row.last_work_bonus_at).slice(0, 10) : null,
+    last_relax_at: row.last_relax_at != null ? String(row.last_relax_at) : null,
+    last_work_bonus_at: row.last_work_bonus_at != null ? String(row.last_work_bonus_at) : null,
     current_house_id: row.current_house_id != null ? String(row.current_house_id) : null,
     current_work_room_id: row.current_work_room_id != null ? String(row.current_work_room_id) : null,
     created_at: String(row.created_at),
@@ -260,6 +260,18 @@ export function getTodayBrazilDate(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 }
 
+/** Cooldown após usar Relaxar em casa ou Trabalhar (3 horas). */
+const COOLDOWN_RELAX_MS = 3 * 60 * 60 * 1000;
+const COOLDOWN_WORK_BONUS_MS = 3 * 60 * 60 * 1000;
+
+/** Retorna data (YYYY-MM-DD) em America/Sao_Paulo a partir de um timestamp ISO. */
+export function getBrazilDateFromIso(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
 /** Retorna a última data (YYYY-MM-DD, Brazil) em que o usuário concluiu alguma atividade. */
 export async function getLastActivityDate(userId: string): Promise<string | null> {
   const sql = getNeon();
@@ -396,8 +408,9 @@ export async function recordTaskCompletedForGame(
     }
   }
 
+  const lastWorkBonusDate = getBrazilDateFromIso(profile.last_work_bonus_at);
   const hasWorkBonusToday =
-    activityType === 'trabalho' && profile.last_work_bonus_at === options.scheduled_date;
+    activityType === 'trabalho' && lastWorkBonusDate === options.scheduled_date;
   if (hasWorkBonusToday) {
     coinsEarned = Math.floor(coinsEarned * WORK_BONUS_COINS_MULTIPLIER);
     stressChange = Math.round(stressChange * WORK_BONUS_STRESS_MULTIPLIER);
@@ -530,15 +543,21 @@ export async function recordTaskCompletedForGame(
 }
 
 /**
- * Usa "Relaxar em casa" (1x/dia). Reduz stress. Bônus da casa ativa + pet. Retorna { ok, error: 'already_used' } se já usou hoje.
+ * Usa "Relaxar em casa". Reduz stress. Bônus da casa ativa + pet. Cooldown 3h. Retorna { ok, error: 'already_used', next_available_at? } se ainda em cooldown.
  */
 export async function useRelax(
   userId: string
-): Promise<{ ok: boolean; error?: string; profile?: GameProfile }> {
+): Promise<{ ok: boolean; error?: string; next_available_at?: string; profile?: GameProfile }> {
   const profile = await getOrCreateGameProfile(userId);
-  const today = getTodayBrazilDate();
-  if (profile.last_relax_at === today) {
-    return { ok: false, error: 'already_used' };
+  const now = Date.now();
+  if (profile.last_relax_at) {
+    const lastMs = new Date(profile.last_relax_at).getTime();
+    if (Number.isNaN(lastMs)) {
+      // legacy date-only value
+    } else if (now - lastMs < COOLDOWN_RELAX_MS) {
+      const nextAt = new Date(lastMs + COOLDOWN_RELAX_MS).toISOString();
+      return { ok: false, error: 'already_used', next_available_at: nextAt };
+    }
   }
   const house = getHouseById(profile.current_house_id ?? null);
   let reduction = RELAX_STRESS_REDUCTION + (house?.relax_extra ?? 0);
@@ -548,8 +567,9 @@ export async function useRelax(
   const newStress = Math.max(0, profile.stress - reduction);
   const healthGain = house?.health_bonus ?? 0;
   const newHealth = Math.min(100, profile.health + healthGain);
+  const nowIso = new Date().toISOString();
   const updated = await updateGameProfile(userId, {
-    last_relax_at: today,
+    last_relax_at: nowIso,
     stress: newStress,
     health: newHealth,
   });
@@ -564,18 +584,19 @@ const WORK_BONUS_COINS_REWARD = 80;
 const WORK_BONUS_XP = 50;
 
 /**
- * Ativa o bônus "Trabalhar" para hoje (1x/dia). Custa saúde e stress, dá moedas e 50 XP. Bônus da sala ativa (mais moedas, menos custo de saúde).
+ * Ativa o bônus "Trabalhar". Custa saúde e stress, dá moedas e 50 XP. Cooldown 3h. Retorna { ok, error: 'already_used', next_available_at? } se ainda em cooldown.
  */
-/** Em desenvolvimento: permite usar "Trabalhar" várias vezes por dia (período de teste). Em produção: 1x/dia. */
-const isProduction = process.env.NODE_ENV === 'production';
-
 export async function useWorkBonus(
   userId: string
-): Promise<{ ok: boolean; error?: string; profile?: GameProfile; xpEarned?: number; levelUp?: boolean; newLevel?: number; previousLevel?: number; died?: boolean }> {
+): Promise<{ ok: boolean; error?: string; next_available_at?: string; profile?: GameProfile; xpEarned?: number; levelUp?: boolean; newLevel?: number; previousLevel?: number; died?: boolean }> {
   const profile = await getOrCreateGameProfile(userId);
-  const today = getTodayBrazilDate();
-  if (isProduction && profile.last_work_bonus_at === today) {
-    return { ok: false, error: 'already_used' };
+  const now = Date.now();
+  if (profile.last_work_bonus_at) {
+    const lastMs = new Date(profile.last_work_bonus_at).getTime();
+    if (!Number.isNaN(lastMs) && now - lastMs < COOLDOWN_WORK_BONUS_MS) {
+      const nextAt = new Date(lastMs + COOLDOWN_WORK_BONUS_MS).toISOString();
+      return { ok: false, error: 'already_used', next_available_at: nextAt };
+    }
   }
   const room = getWorkRoomById(profile.current_work_room_id ?? null);
   const healthCost = Math.max(0, WORK_BONUS_HEALTH_COST + (room?.work_health_extra ?? 0));
@@ -604,8 +625,8 @@ export async function useWorkBonus(
     coins: newCoins,
     experience: newExperience,
     level: newLevel,
+    last_work_bonus_at: new Date().toISOString(),
   };
-  if (isProduction) updatePayload.last_work_bonus_at = today;
   const updated = await updateGameProfile(userId, updatePayload);
   return {
     ok: true,

@@ -35,6 +35,8 @@ function getTodayBrazil(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 }
 
+const COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 horas
+
 export default function TrabalhoPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -122,22 +124,31 @@ export default function TrabalhoPage() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [user, loadStatus]);
 
-  const todayBrazil = getTodayBrazil();
-  const alreadyWorkBonusToday = profile?.last_work_bonus_at === todayBrazil;
-  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownEndMs - Date.now()) / 1000));
+  const nextFromProfile = profile?.last_work_bonus_at
+    ? new Date(profile.last_work_bonus_at).getTime() + COOLDOWN_MS
+    : 0;
+  const effectiveCooldownEnd = Math.max(cooldownEndMs, nextFromProfile > Date.now() ? nextFromProfile : 0);
+  const cooldownSecondsLeft = Math.max(0, Math.ceil((effectiveCooldownEnd - Date.now()) / 1000));
   const inCooldown = cooldownSecondsLeft > 0;
 
   useEffect(() => {
-    if (cooldownEndMs <= 0) return;
+    if (profile?.last_work_bonus_at) {
+      const next = new Date(profile.last_work_bonus_at).getTime() + COOLDOWN_MS;
+      if (next > Date.now()) setCooldownEndMs(next);
+    }
+  }, [profile?.last_work_bonus_at]);
+
+  useEffect(() => {
+    if (effectiveCooldownEnd <= 0) return;
     const t = setInterval(() => setCooldownTick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, [cooldownEndMs]);
+  }, [effectiveCooldownEnd]);
   useEffect(() => {
-    if (cooldownEndMs > 0 && cooldownSecondsLeft <= 0) setCooldownEndMs(0);
-  }, [cooldownEndMs, cooldownSecondsLeft]);
+    if (effectiveCooldownEnd > 0 && cooldownSecondsLeft <= 0) setCooldownEndMs(0);
+  }, [effectiveCooldownEnd, cooldownSecondsLeft]);
 
   const handleWorkBonus = useCallback(async () => {
-    if (alreadyWorkBonusToday || workBonusLoading || inCooldown) return;
+    if (workBonusLoading || inCooldown) return;
     setWorkBonusError(null);
     setWorkBonusLoading(true);
     try {
@@ -145,7 +156,7 @@ export default function TrabalhoPage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
         if (data.profile) setProfile(data.profile);
-        setCooldownEndMs(Date.now() + 10_000);
+        setCooldownEndMs(Date.now() + COOLDOWN_MS);
         loadStatus();
         if (data.game?.died) {
           setShowDeathModal(true);
@@ -161,18 +172,19 @@ export default function TrabalhoPage() {
       }
       const errorMsg =
         data?.message ||
-        (data?.error === 'already_used' ? 'Você já usou seu bônus hoje.' : null) ||
+        (data?.error === 'already_used' ? 'Aguarde 3 horas entre um uso e outro.' : null) ||
         (res.status === 401 ? 'Sessão expirada. Faça login novamente.' : null) ||
         data?.error ||
         'Não foi possível ativar. Tente de novo.';
       setWorkBonusError(errorMsg);
       if (data?.profile) setProfile(data.profile);
+      if (data?.next_available_at) setCooldownEndMs(new Date(data.next_available_at).getTime());
     } catch (_e) {
       setWorkBonusError('Erro de conexão. Tente de novo.');
     } finally {
       setWorkBonusLoading(false);
     }
-  }, [alreadyWorkBonusToday, workBonusLoading, inCooldown, loadStatus]);
+  }, [workBonusLoading, inCooldown, loadStatus]);
 
   const handlePrevWork = useCallback(() => {
     setViewingWorkIndex((i) => (i <= 0 ? workRooms.length - 1 : i - 1));
@@ -336,12 +348,16 @@ export default function TrabalhoPage() {
         </div>
 
         <section className="rounded-xl bg-slate-800/80 p-4 space-y-3">
-          <h2 className="text-sm font-medium text-slate-300">Ação diária</h2>
-          {alreadyWorkBonusToday ? (
-            <p className="text-amber-300/90 text-sm">Você já usou seu bônus hoje.</p>
-          ) : inCooldown ? (
+          <h2 className="text-sm font-medium text-slate-300">Trabalhar (cooldown 3h)</h2>
+          {inCooldown ? (
             <p className="text-slate-400 text-sm text-center">
-              Disponível em <strong className="text-white">{cooldownSecondsLeft}</strong> s
+              Próximo uso em <strong className="text-white">
+                {cooldownSecondsLeft >= 3600
+                  ? `${Math.floor(cooldownSecondsLeft / 3600)}h ${Math.floor((cooldownSecondsLeft % 3600) / 60)}min`
+                  : cooldownSecondsLeft >= 60
+                    ? `${Math.floor(cooldownSecondsLeft / 60)}min`
+                    : `${cooldownSecondsLeft}s`}
+              </strong>
             </p>
           ) : (
             <>
