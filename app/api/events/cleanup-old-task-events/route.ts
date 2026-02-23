@@ -19,11 +19,12 @@ export async function POST(request: NextRequest) {
     // 1. Pertencem ao usuário
     // 2. Têm formato de tarefa (título termina com " - HH:MM")
     // 3. Não têm task_id vinculado
+    // PostgreSQL usa regex POSIX: [0-9] em vez de \d
     const eventsToDelete = await sql`
       SELECT id, title 
       FROM events 
       WHERE user_id = ${userId}
-        AND title ~ ' - \d{2}:\d{2}$'
+        AND title ~ ' - [0-9][0-9]:[0-9][0-9]$'
         AND (task_id IS NULL OR task_id = '')
     ` as Array<{ id: string; title: string }>;
 

@@ -6,6 +6,7 @@ import { getWorkRoomById } from '@/lib/game/rooms-catalog';
 import { getRewardForFolderType, getImportanceMultiplier } from '@/lib/game/folder-types';
 import { getPetStressReductionPercent } from '@/lib/game/pet-assets';
 import { getCoverBonus } from '@/lib/game/cover-bonuses';
+import { getGuardianItemBonus } from '@/lib/game/guardian-items';
 import { levelFromExperience } from '@/lib/game/level-progression';
 
 function parseEarnedBadges(raw: unknown): string[] {
@@ -44,6 +45,7 @@ function rowToGameProfile(row: Record<string, unknown>): GameProfile {
     cover_position_y: row.cover_position_y != null ? Number(row.cover_position_y) : 50,
     earned_badge_ids: parseEarnedBadges(earnedBadgesRaw),
     pet_id: row.pet_id != null ? String(row.pet_id) : null,
+    antistress_item_id: row.antistress_item_id != null ? String(row.antistress_item_id) : null,
     last_relax_at: row.last_relax_at != null ? String(row.last_relax_at) : null,
     last_work_bonus_at: row.last_work_bonus_at != null ? String(row.last_work_bonus_at) : null,
     current_house_id: row.current_house_id != null ? String(row.current_house_id) : null,
@@ -136,6 +138,7 @@ export async function updateGameProfile(
       | 'cover_position_y'
       | 'earned_badge_ids'
       | 'pet_id'
+      | 'antistress_item_id'
       | 'last_relax_at'
       | 'last_work_bonus_at'
       | 'current_house_id'
@@ -173,6 +176,7 @@ export async function updateGameProfile(
       cover_position_y = ${coverPositionY},
       earned_badges = ${earnedBadgesJson}::jsonb,
       pet_id = COALESCE(${updates.pet_id ?? null}, pet_id),
+      antistress_item_id = COALESCE(${updates.antistress_item_id ?? null}, antistress_item_id),
       last_relax_at = COALESCE(${updates.last_relax_at ?? null}, last_relax_at),
       last_work_bonus_at = COALESCE(${updates.last_work_bonus_at ?? null}, last_work_bonus_at),
       current_house_id = COALESCE(${updates.current_house_id ?? null}, current_house_id),
@@ -436,6 +440,17 @@ export async function recordTaskCompletedForGame(
   }
   if (coverBonus.stress_reduce_percent && stressChange > 0) {
     stressChange = Math.max(0, Math.round(stressChange * (1 - coverBonus.stress_reduce_percent / 100)));
+  }
+
+  const guardianBonus = getGuardianItemBonus(profile.antistress_item_id ?? null);
+  if (guardianBonus.stress_reduce_percent && stressChange > 0) {
+    stressChange = Math.max(0, Math.round(stressChange * (1 - guardianBonus.stress_reduce_percent / 100)));
+  }
+  if (guardianBonus.xp_percent && xpEarned > 0) {
+    xpEarned = Math.floor(xpEarned * (1 + guardianBonus.xp_percent / 100));
+  }
+  if (guardianBonus.coins_percent && coinsEarned > 0) {
+    coinsEarned = Math.floor(coinsEarned * (1 + guardianBonus.coins_percent / 100));
   }
 
   // Status "doente" (saúde ≤50%): trabalho rende menos, mais stress, menos XP

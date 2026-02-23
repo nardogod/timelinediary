@@ -15,6 +15,44 @@ export interface BadgeDef {
   order: number;
 }
 
+/** Títulos no mural — Ordem dos Guardiões (docs/LORE_ORDEM_DOS_GUARDIOES.md). */
+const AVATAR_TITLE_BADGES: BadgeDef[] = [
+  { id: 'titulo_kael', name: 'Disciplinado', description: 'Força de vontade. Forma final de Kael.', requirement: 'Complete as 3 missões do Guerreiro Kael.', icon: '⚔️', order: 100 },
+  { id: 'titulo_lyra', name: 'Estrategista', description: 'Planejamento. Forma final de Lyra.', requirement: 'Complete as 3 missões da Estrategista Lyra.', icon: '♟️', order: 101 },
+  { id: 'titulo_thorne', name: 'Intenso', description: 'Foco profundo. Forma final de Thorne.', requirement: 'Complete as 3 missões do Bárbaro Thorne.', icon: '🪓', order: 102 },
+  { id: 'titulo_seraphina', name: 'Inquebrável', description: 'Constância. Forma final de Seraphina.', requirement: 'Complete as 3 missões da Paladina Seraphina.', icon: '🛡️', order: 103 },
+  { id: 'titulo_ragnar', name: 'Rei do Norte', description: 'Conquistador. Forma final de Ragnar.', requirement: 'Complete as 3 missões do Viking Ragnar.', icon: '⛵', order: 104 },
+  { id: 'titulo_elara', name: 'Caçadora Lendária', description: 'Precisão. Forma final de Elara.', requirement: 'Complete as 3 missões da Arqueira Elara.', icon: '🏹', order: 105 },
+  { id: 'titulo_magnus', name: 'Sábio', description: 'Mestria intelectual. Forma final de Magnus.', requirement: 'Complete as 3 missões do Mago Magnus.', icon: '📜', order: 106 },
+  { id: 'titulo_shadow', name: 'Eficiente', description: 'Precisão. Forma final de Shadow.', requirement: 'Complete as 3 missões do Assassino Shadow.', icon: '🗡️', order: 107 },
+  { id: 'titulo_luna', name: 'Iniciado', description: 'Começo da jornada. A Guia Luna te reconheceu.', requirement: 'Complete as 3 missões de Luna (Primeira Luz, Caminho Iluminado, Porta Aberta).', icon: '💎', order: 108 },
+  { id: 'titulo_draven', name: 'Ressuscitador', description: 'Redenção. Forma final de Draven.', requirement: 'Complete as 3 missões do Necromante Draven.', icon: '💀', order: 109 },
+  { id: 'titulo_vex', name: 'Ilusionista', description: 'Criatividade. Forma final de Vex.', requirement: 'Complete as 3 missões da Ilusionista Vex.', icon: '🎭', order: 110 },
+  { id: 'titulo_raven', name: 'Caçadora', description: 'Coragem. Forma final de Raven.', requirement: 'Complete as 3 missões da Caçadora Raven.', icon: '🎯', order: 111 },
+  { id: 'titulo_zane', name: 'Iconoclasta', description: 'Quebra de regras. Forma final de Zane.', requirement: 'Complete as 3 missões do Espadachim Zane.', icon: '⚔️', order: 112 },
+  { id: 'titulo_nyx', name: 'Noturno', description: 'Ritmo próprio. Forma final de Nyx.', requirement: 'Complete as 3 missões da Feiticeira Nyx.', icon: '🌙', order: 113 },
+  { id: 'titulo_sylas', name: 'Versátil', description: 'Adaptação. Forma final de Sylas.', requirement: 'Complete as 3 missões do Druida Sylas.', icon: '🌿', order: 114 },
+  { id: 'titulo_fenrir', name: 'Líder', description: 'Fluxo. Forma final de Fenrir.', requirement: 'Complete as 3 missões do Lobo Fenrir.', icon: '🐺', order: 115 },
+  { id: 'titulo_aurora', name: 'Inspiradora', description: 'Estética. Forma final de Aurora.', requirement: 'Complete as 3 missões da Elfa Aurora.', icon: '✨', order: 116 },
+  { id: 'titulo_thorn', name: 'Paciente', description: 'Longo prazo. Forma final de Thorn.', requirement: 'Complete as 3 missões do Ent Thorn.', icon: '🌳', order: 117 },
+  { id: 'titulo_ember', name: 'Ressurgido', description: 'Resiliência. Forma final de Ember.', requirement: 'Complete as 3 missões da Fênix Ember.', icon: '🔥', order: 118 },
+  { id: 'titulo_tide', name: 'Fluido', description: 'Energia. Forma final de Tide.', requirement: 'Complete as 3 missões do Tritão Tide.', icon: '🌊', order: 119 },
+  { id: 'titulo_gale', name: 'Leve', description: 'Eficiência sustentável. Forma final de Gale.', requirement: 'Complete as 3 missões do Sílfide Gale.', icon: '💨', order: 120 },
+  { id: 'titulo_neo', name: 'Híbrido', description: 'Integração tech. Forma final de Neo.', requirement: 'Complete as 3 missões do Ciborgue Neo.', icon: '🤖', order: 121 },
+  { id: 'titulo_pixel', name: 'Otimizado', description: 'Inteligência. Forma final de Pixel.', requirement: 'Complete as 3 missões da IA Pixel.', icon: '💻', order: 122 },
+  { id: 'titulo_glitch', name: 'Hacker', description: 'Criatividade sistêmica. Forma final de Glitch.', requirement: 'Complete as 3 missões do Hacker Glitch.', icon: '⌨️', order: 123 },
+  { id: 'titulo_spark', name: 'Construtora', description: 'Sistemas. Forma final de Spark.', requirement: 'Complete as 3 missões da Engenheira Spark.', icon: '🔧', order: 124 },
+  { id: 'titulo_byte', name: 'Inquebrável', description: 'Rotina. Forma final de Byte.', requirement: 'Complete as 3 missões do Robô Byte.', icon: '📟', order: 125 },
+  { id: 'titulo_data', name: 'Iluminado', description: 'Conhecimento. Forma final de Data.', requirement: 'Complete as 3 missões do Cientista Data.', icon: '🔬', order: 126 },
+  { id: 'titulo_nova', name: 'Exploradora', description: 'Inovação. Forma final de Nova.', requirement: 'Complete as 3 missões da Astronauta Nova.', icon: '🚀', order: 127 },
+  { id: 'titulo_zen', name: 'Presente', description: 'Mindfulness. Forma final de Zen.', requirement: 'Complete as 3 missões do Monge Zen.', icon: '☯️', order: 128 },
+  { id: 'titulo_spirit', name: 'Atemporal', description: 'Conexão. Forma final de Spirit.', requirement: 'Complete as 3 missões do Xamã Spirit.', icon: '🦅', order: 129 },
+  { id: 'titulo_oracle', name: 'Visionária', description: 'Previsão. Forma final de Oracle.', requirement: 'Complete as 3 missões da Vidente Oracle.', icon: '🔮', order: 130 },
+  { id: 'titulo_phantom', name: 'Silencioso', description: 'Intrínseco. Forma final de Phantom.', requirement: 'Complete as 3 missões do Fantasma Phantom.', icon: '👻', order: 131 },
+  { id: 'titulo_titan', name: 'Inexorável', description: 'Volume. Forma final de Titan.', requirement: 'Complete as 3 missões do Colosso Titan.', icon: '💪', order: 132 },
+  { id: 'titulo_eternal', name: 'IMORTAL', description: 'Lenda viva. O primeiro e último Guardião.', requirement: 'Complete as 3 missões do Imortal Eternal.', icon: '⏳', order: 133 },
+];
+
 export const BADGES: BadgeDef[] = [
   {
     id: 'primeira_semana',
@@ -88,10 +126,12 @@ export const BADGES: BadgeDef[] = [
     icon: '🏆',
     order: 9,
   },
+  // Títulos de conquista (forma final de cada avatar) — ordem 100+
+  ...AVATAR_TITLE_BADGES,
 ];
 
 /** IDs das medalhas do primeiro nível (precisam ser todas conquistadas para o próximo nível). */
-export const TIER_1_BADGE_IDS = BADGES.filter((b) => b.id !== 'proximo_nivel').map((b) => b.id);
+export const TIER_1_BADGE_IDS = BADGES.filter((b) => b.id !== 'proximo_nivel' && b.order < 100).map((b) => b.id);
 
 export function getBadge(id: string): BadgeDef | undefined {
   return BADGES.find((b) => b.id === id);

@@ -12,6 +12,7 @@ import { createEvent, updateEvent, getEventByTaskId } from '@/lib/db/events';
 import { getFolderById } from '@/lib/db/folders';
 import { getNoteListById } from '@/lib/db/note-lists';
 import { recordTaskCompletedForGame } from '@/lib/db/game';
+import { evaluateAndGrantMissions } from '@/lib/db/missions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -236,6 +237,9 @@ export async function PATCH(request: NextRequest) {
             xpEarned: result.xpEarned,
             died: result.died,
           };
+        }
+        if (result?.ok) {
+          await evaluateAndGrantMissions(userId);
         }
       } catch (e) {
         console.error('[tasks PATCH] recordTaskCompletedForGame', e);

@@ -250,3 +250,47 @@ export async function getPendingCountByFolder(userId: string): Promise<Map<strin
   }
   return map;
 }
+
+/** Conta tarefas concluídas em pastas de um dado tipo (trabalho, estudos, lazer, tarefas_pessoais). */
+export async function getCompletedTasksCountByFolderType(
+  userId: string,
+  folderType: string
+): Promise<number> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT COUNT(*) as count
+    FROM tasks t
+    INNER JOIN folders f ON f.id = t.folder_id AND f.user_id = t.user_id
+    WHERE t.user_id = ${userId} AND t.completed = true AND t.completed_at IS NOT NULL
+      AND f.folder_type = ${folderType}
+  `;
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? Number(row.count) : 0;
+}
+
+/** Número de pastas distintas em que o usuário já concluiu pelo menos uma tarefa. */
+export async function getDistinctFoldersWithCompletedTasksCount(userId: string): Promise<number> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT COUNT(DISTINCT folder_id) as count
+    FROM tasks
+    WHERE user_id = ${userId} AND completed = true AND completed_at IS NOT NULL
+  `;
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? Number(row.count) : 0;
+}
+
+/** Máximo de tarefas concluídas em um único dia (para missões “maratona”). */
+export async function getMaxCompletedTasksInOneDay(userId: string): Promise<number> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT to_char(completed_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as d, COUNT(*) as c
+    FROM tasks
+    WHERE user_id = ${userId} AND completed = true AND completed_at IS NOT NULL
+    GROUP BY 1
+    ORDER BY c DESC
+    LIMIT 1
+  `;
+  const row = (rows as Record<string, unknown>[])[0];
+  return row ? Number(row.c) : 0;
+}

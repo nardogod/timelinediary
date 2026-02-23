@@ -4,6 +4,7 @@ import { createEvent, getEventsByUserId, createMultipleEvents, updateEvent, getE
 import { createTask, updateTask } from '@/lib/db/tasks';
 import { getFolderById } from '@/lib/db/folders';
 import { recordTaskCompletedForGame } from '@/lib/db/game';
+import { evaluateAndGrantMissions } from '@/lib/db/missions';
 import { generateRecurringDates, DayOfWeek } from '@/lib/recurringEvents';
 
 /** Retorna YYYY-MM-DD em timezone local. */
@@ -44,14 +45,17 @@ async function applyRewardIfPastOrToday(
       folder_type: folder?.folder_type ?? undefined,
       event_importance: event.type,
     });
-    if (result.ok && (result.levelUp || result.xpEarned != null || result.died)) {
-      return {
-        levelUp: result.levelUp,
-        newLevel: result.newLevel,
-        previousLevel: result.previousLevel,
-        xpEarned: result.xpEarned,
-        died: result.died,
-      };
+    if (result.ok) {
+      await evaluateAndGrantMissions(userId);
+      if (result.levelUp || result.xpEarned != null || result.died) {
+        return {
+          levelUp: result.levelUp,
+          newLevel: result.newLevel,
+          previousLevel: result.previousLevel,
+          xpEarned: result.xpEarned,
+          died: result.died,
+        };
+      }
     }
   } catch (e) {
     console.error('[events POST] recordTaskCompletedForGame', e);

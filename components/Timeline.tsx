@@ -30,9 +30,13 @@ interface TimelineProps {
   eventIdsWithViews?: Set<string>;
   /** Todos os eventos (não filtrados) - usado para cálculo de posição quando há filtros */
   allEvents?: MockEvent[];
+  /** Em "Todos": colorir por pasta; dentro de uma pasta: colorir por importância */
+  colorByFolder?: boolean;
+  /** Mapa nome da pasta -> cor (hex). Usado quando colorByFolder é true. */
+  folderColorMap?: Record<string, string>;
 }
 
-function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited, eventIdsWithViews, allEvents }: TimelineProps) {
+function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, canEdit, username, onEventDeleted, onTaskEdited, eventIdsWithViews, allEvents, colorByFolder, folderColorMap }: TimelineProps) {
   const { zoom, pan, isDragging, setIsDragging, setPan, handleZoomChange, handleReset } = useTimeline();
   const [dragStart, setDragStart] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -367,6 +371,8 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
                       events={events}
                       settings={settings}
                       defaultMonth={defaultMonth}
+                      colorByFolder={colorByFolder}
+                      folderColorMap={folderColorMap}
                     />
                   ))}
               </div>
@@ -492,6 +498,8 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
                   onEventsUpdate={onTaskEdited}
                   onEventDeleted={onEventDeleted}
                   canEdit={canEdit}
+                  colorByFolder={colorByFolder}
+                  folderColorMap={folderColorMap}
                 />
               );
             })}
@@ -518,6 +526,8 @@ function Timeline({ events, settings, themeId, onResetFilters, defaultMonth, can
                   onEventDeleted={onEventDeleted}
                   onTaskEdited={onTaskEdited}
                   linkViewed={eventIdsWithViews?.has(event.id)}
+                  colorByFolder={colorByFolder}
+                  folderColorMap={folderColorMap}
                 />
               );
             })}

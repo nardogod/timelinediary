@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const itemType = body.item_type as ShopItemType | undefined;
   const itemId = body.item_id as string | undefined;
-  if (!itemType || !itemId || !['cover', 'avatar', 'pet'].includes(itemType)) {
+  if (!itemType || !itemId || !['cover', 'avatar', 'pet', 'guardian_item'].includes(itemType)) {
     return NextResponse.json({ error: 'item_type e item_id inválidos' }, { status: 400 });
   }
 

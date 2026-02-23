@@ -24,9 +24,13 @@ interface TimelineEventProps {
   onTaskEdited?: () => void;
   /** Link deste evento foi clicado por alguém (selo "Visualizado") */
   linkViewed?: boolean;
+  /** Em "Todos": colorir por pasta; dentro de uma pasta: colorir por importância */
+  colorByFolder?: boolean;
+  /** Mapa nome da pasta -> cor (hex). Usado quando colorByFolder é true. */
+  folderColorMap?: Record<string, string>;
 }
 
-function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted, onTaskEdited, linkViewed }: TimelineEventProps) {
+function TimelineEvent({ event, position, placement, layer = 0, settings, canEdit, username, onEventDeleted, onTaskEdited, linkViewed, colorByFolder, folderColorMap }: TimelineEventProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [showPreview, setShowPreview] = useState(false);
@@ -41,13 +45,16 @@ function TimelineEvent({ event, position, placement, layer = 0, settings, canEdi
   const isTask = isTaskEvent(event) && event.taskId;
 
   const color = useMemo(() => {
+    if (colorByFolder && folderColorMap && event.folder && folderColorMap[event.folder]) {
+      return folderColorMap[event.folder];
+    }
     if (settings) {
       if (event.type === 'simple') return settings.eventSimpleColor || EVENT_COLORS.simple;
       if (event.type === 'medium') return settings.eventMediumColor || EVENT_COLORS.medium;
       if (event.type === 'important') return settings.eventImportantColor || EVENT_COLORS.important;
     }
     return EVENT_COLORS[event.type];
-  }, [event.type, settings]);
+  }, [event.type, event.folder, settings, colorByFolder, folderColorMap]);
   const isTop = placement === 'top';
 
   // Colapsa automaticamente após 5 segundos se expandido

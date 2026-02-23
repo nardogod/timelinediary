@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import {
-  getMissionsInOrder,
-  getCompletedMissionIds,
-  evaluateAndGrantMissions,
-} from '@/lib/db/missions';
+import { getMissionsInOrder, getCompletedMissionIds } from '@/lib/db/missions';
 
+/** Não concede missões aqui: concede apenas ao completar uma tarefa (evita desbloquear muitos avatares de uma vez). */
 export async function GET() {
   const userId = await getSessionUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    await evaluateAndGrantMissions(userId);
     const [missions, completedIds] = await Promise.all([
       getMissionsInOrder(),
       getCompletedMissionIds(userId),
@@ -24,6 +20,8 @@ export async function GET() {
       requirement: m.requirement,
       reward: m.reward,
       completed: completedSet.has(m.id),
+      ...(m.difficulty && { difficulty: m.difficulty }),
+      ...(m.arcId && { arcId: m.arcId, arcName: m.arcName, arcStory: m.arcStory }),
     }));
     return NextResponse.json({ missions: list });
   } catch (e) {

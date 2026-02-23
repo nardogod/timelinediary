@@ -21,6 +21,8 @@ export interface GameProfile {
   earned_badge_ids: string[];
   /** Id do pet escolhido (ex: pet1, pet2; ver lib/game/pet-assets.ts) */
   pet_id: string | null;
+  /** Item de Guardião equipado no slot anti-stress (ex: cristal_luna; ver lib/game/guardian-items.ts) */
+  antistress_item_id: string | null;
   /** Timestamp ISO do último uso de "Relaxar em casa" (cooldown 3h) */
   last_relax_at: string | null;
   /** Timestamp ISO do último uso do bônus "Trabalhar" (cooldown 3h) */

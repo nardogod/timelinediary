@@ -11,9 +11,11 @@ interface PeriodLineProps {
   events: MockEvent[];
   settings?: UserSettings | null;
   defaultMonth?: { year: number; month: number };
+  colorByFolder?: boolean;
+  folderColorMap?: Record<string, string>;
 }
 
-function PeriodLine({ event, events, settings, defaultMonth }: PeriodLineProps) {
+function PeriodLine({ event, events, settings, defaultMonth, colorByFolder, folderColorMap }: PeriodLineProps) {
   const [isHovered, setIsHovered] = useState(false);
   
   // Memoiza cálculos pesados
@@ -29,11 +31,16 @@ function PeriodLine({ event, events, settings, defaultMonth }: PeriodLineProps) 
       return { startPos: 0, endPos: 0, color: '', periodColor: '', width: 0, daysDiff: 0 };
     }
 
-    const eventColor = settings 
-      ? (event.type === 'simple' ? (settings.eventSimpleColor || EVENT_COLORS.simple)
-         : event.type === 'medium' ? (settings.eventMediumColor || EVENT_COLORS.medium)
-         : (settings.eventImportantColor || EVENT_COLORS.important))
-      : EVENT_COLORS[event.type];
+    let eventColor: string;
+    if (colorByFolder && folderColorMap && event.folder && folderColorMap[event.folder]) {
+      eventColor = folderColorMap[event.folder];
+    } else if (settings) {
+      eventColor = event.type === 'simple' ? (settings.eventSimpleColor || EVENT_COLORS.simple)
+        : event.type === 'medium' ? (settings.eventMediumColor || EVENT_COLORS.medium)
+        : (settings.eventImportantColor || EVENT_COLORS.important);
+    } else {
+      eventColor = EVENT_COLORS[event.type];
+    }
     
     // Cria uma versão mais clara/transparente da cor
     const hex = eventColor.replace('#', '');
@@ -56,7 +63,7 @@ function PeriodLine({ event, events, settings, defaultMonth }: PeriodLineProps) 
       width: w,
       daysDiff: diff
     };
-  }, [event, events]);
+  }, [event, events, colorByFolder, folderColorMap]);
 
   const handleClick = useCallback(() => {
     if (event.link) {

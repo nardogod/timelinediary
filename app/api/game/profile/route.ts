@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
 import { getOrCreateGameProfile, updateGameProfile } from '@/lib/db/game';
+import { getOwnedItems } from '@/lib/db/shop';
 
 export async function GET() {
   const userId = await getSessionUserId();
@@ -28,11 +29,23 @@ export async function PATCH(request: NextRequest) {
   if (body.cover_id !== undefined) updates.cover_id = body.cover_id;
   if (body.cover_position_y !== undefined) updates.cover_position_y = body.cover_position_y;
   if (body.pet_id !== undefined) updates.pet_id = body.pet_id == null ? null : String(body.pet_id);
+  if (body.antistress_item_id !== undefined) {
+    const value = body.antistress_item_id == null ? null : String(body.antistress_item_id);
+    if (value !== null) {
+      const owned = await getOwnedItems(userId);
+      if (!owned.guardian_item.includes(value)) {
+        return NextResponse.json({ error: 'Você não possui este item' }, { status: 400 });
+      }
+    }
+    updates.antistress_item_id = value;
+  }
 
   const profile = await updateGameProfile(userId, updates);
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-  // Garantir que a resposta reflete o pet_id que o cliente enviou (evita volta para valor antigo)
-  const responseProfile =
-    updates.pet_id !== undefined ? { ...profile, pet_id: updates.pet_id } : profile;
+  const responseProfile = {
+    ...profile,
+    ...(updates.pet_id !== undefined && { pet_id: updates.pet_id }),
+    ...(updates.antistress_item_id !== undefined && { antistress_item_id: updates.antistress_item_id }),
+  };
   return NextResponse.json(responseProfile);
 }

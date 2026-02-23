@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect, useMemo, useCallback } from 'react';
+import { use, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MockEvent } from '@/lib/mockData';
 import Timeline from '@/components/Timeline';
 import ZoomControls from '@/components/ZoomControls';
@@ -28,6 +28,8 @@ import { useSwipe } from '@/hooks/useSwipe';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { trackEvent } from '@/lib/analytics';
 import MeuMundoButton from '@/components/MeuMundoButton';
+import TimelineFilters, { type ImportanceOption } from '@/components/TimelineFilters';
+import { isTaskEvent } from '@/lib/utils';
 
 type ApiUser = { id: string; username: string; name: string; avatar: string | null };
 type ApiEvent = { id: string; user_id: string; title: string; date: string; end_date: string | null; type: string; link: string | null; folder_id: string | null; task_id?: string | null };
@@ -66,6 +68,10 @@ export default function UserTimelinePage(props: PageProps) {
   const [eventIdsWithViews, setEventIdsWithViews] = useState<Set<string>>(new Set());
   const [fanRank, setFanRank] = useState<Array<{ rank: number; username: string | null; name: string | null; viewCount: number }>>([]);
   const [avatarSelectorOpen, setAvatarSelectorOpen] = useState(false);
+  const [folderFilterForTodos, setFolderFilterForTodos] = useState<string[]>([]);
+  const [showTasksOnTimeline, setShowTasksOnTimeline] = useState(true);
+  const [importanceFilter, setImportanceFilter] = useState<ImportanceOption[]>(['simple', 'medium', 'important']);
+  const cleanupTaskEventsDoneRef = useRef(false);
 
   const loadUserData = useCallback(async () => {
     if (!username) return;
@@ -78,18 +84,17 @@ export default function UserTimelinePage(props: PageProps) {
     const user: ApiUser = await userRes.json();
     setProfileUser(user);
 
-    // Limpa eventos de tarefas antigas sem task_id (apenas para o dono da conta)
-    if (currentUser && currentUser.id === user.id) {
+    // Limpa eventos de tarefas antigas sem task_id (apenas 1x por sessão, para o dono)
+    if (currentUser && currentUser.id === user.id && !cleanupTaskEventsDoneRef.current) {
+      cleanupTaskEventsDoneRef.current = true;
       try {
-        await fetch('/api/events/cleanup-old-task-events', { method: 'POST' });
-      } catch (error) {
-        console.warn('Failed to cleanup old task events:', error);
+        const res = await fetch('/api/events/cleanup-old-task-events', { method: 'POST' });
+        if (!res.ok) {
+          cleanupTaskEventsDoneRef.current = false;
+        }
+      } catch {
+        cleanupTaskEventsDoneRef.current = false;
       }
-    }
-
-    // Aguarda um pouco após a limpeza para garantir que os dados estejam atualizados
-    if (currentUser && currentUser.id === user.id) {
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     const [eventsRes, foldersRes, tasksStatsRes] = await Promise.all([
@@ -277,25 +282,38 @@ export default function UserTimelinePage(props: PageProps) {
   // Memoiza eventos filtrados para evitar recálculos desnecessários
   const filteredEvents = useMemo(() => {
     let filtered = allEvents;
-    
+
     // Filtro por pasta
     if (selectedFolder !== null) {
       filtered = filtered.filter(event => event.folder === selectedFolder);
+    } else if (folderFilterForTodos.length > 0) {
+      const folderSet = new Set(folderFilterForTodos.map((n) => n.trim().toLowerCase()));
+      filtered = filtered.filter((event) => {
+        const f = event.folder?.trim().toLowerCase();
+        return f != null && f !== '' && folderSet.has(f);
+      });
+    }
+
+    if (!showTasksOnTimeline) {
+      filtered = filtered.filter(event => !(isTaskEvent(event) && event.taskId));
+    }
+
+    if (importanceFilter.length < 3) {
+      filtered = filtered.filter(event => importanceFilter.includes(event.type));
     }
     
     // Filtro por mês
     if (filterActive) {
       filtered = filtered.filter(event => {
-        // Normaliza data para YYYY-MM-DD antes de comparar
         const dateStr = typeof event.date === 'string' ? event.date.split('T')[0] : String(event.date).split('T')[0];
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
         const [year, month] = dateStr.split('-').map(Number);
-        return year === selectedYear && (month - 1) === selectedMonth; // month é 1-12, selectedMonth é 0-11
+        return year === selectedYear && (month - 1) === selectedMonth;
       });
     }
     
     return filtered;
-  }, [filterActive, selectedYear, selectedMonth, selectedFolder, allEvents]);
+  }, [filterActive, selectedYear, selectedMonth, selectedFolder, allEvents, folderFilterForTodos, showTasksOnTimeline, importanceFilter]);
 
   // Analytics: visualização de pasta específica
   useEffect(() => {
@@ -637,56 +655,67 @@ export default function UserTimelinePage(props: PageProps) {
               hasEvents={monthEvents.length > 0}
             />
 
-            {/* Tabs de Pastas - logo abaixo do filtro de mês */}
-            {folders.length > 0 && (
-              <FolderTabs
-                key={foldersKey}
+            {/* Tabs de Pastas + Filtros */}
+            <div className="flex flex-wrap items-center gap-2">
+              {folders.length > 0 && (
+                <FolderTabs
+                  key={foldersKey}
+                  folders={folders}
+                  events={filterActive ? monthEvents : allEvents}
+                  selectedFolder={selectedFolder}
+                  onSelectFolder={setSelectedFolder}
+                  completedTasksCount={completedTasksCount}
+                  totalCompletedTasks={totalCompletedTasks}
+                  filterActive={filterActive}
+                  visibleEvents={filteredEvents}
+                  onOpenNotes={(folderId, folderName) => {
+                    if (currentUser && user && currentUser.id === user.id) {
+                      setNotesFolderId(folderId);
+                      setNotesFolderName(folderName);
+                      setNotesOpen(true);
+                    } else {
+                      showToast('Você precisa estar logado para acessar as notas.', 'warning');
+                    }
+                  }}
+                />
+              )}
+              <TimelineFilters
+                isTodosView={selectedFolder === null}
                 folders={folders}
-                events={filterActive ? monthEvents : allEvents}
-                selectedFolder={selectedFolder}
-                onSelectFolder={setSelectedFolder}
-                completedTasksCount={completedTasksCount}
-                totalCompletedTasks={totalCompletedTasks}
-                filterActive={filterActive}
-                visibleEvents={filteredEvents}
-                onOpenNotes={(folderId, folderName) => {
-                  // Só permite abrir notas se for o dono da conta
-                  if (currentUser && user && currentUser.id === user.id) {
-                    setNotesFolderId(folderId);
-                    setNotesFolderName(folderName);
-                    setNotesOpen(true);
-                  } else {
-                    showToast('Você precisa estar logado para acessar as notas.', 'warning');
-                  }
-                }}
+                folderFilter={folderFilterForTodos}
+                onFolderFilterChange={setFolderFilterForTodos}
+                showTasks={showTasksOnTimeline}
+                onShowTasksChange={setShowTasksOnTimeline}
+                importanceFilter={importanceFilter}
+                onImportanceFilterChange={setImportanceFilter}
+                themeClass={isTema3 ? 'bg-slate-200/80 text-slate-700 hover:bg-slate-300/80' : isTema2 ? 'bg-violet-800/50 text-violet-200 hover:bg-violet-700/50' : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'}
               />
-            )}
+            </div>
 
             {/* Legenda */}
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2 sm:gap-4 justify-center text-xs">
                 <MeuMundoButton />
-                <div className="flex items-center gap-1.5">
-                  <div 
-                    className="w-2.5 h-2.5 rounded-full" 
-                    style={{ backgroundColor: settings?.eventSimpleColor || '#10b981' }}
-                  ></div>
-                  <span className={isTema3 ? 'text-slate-600' : isTema2 ? 'text-violet-200' : 'text-slate-300'}>Simples</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div 
-                    className="w-2.5 h-2.5 rounded-full" 
-                    style={{ backgroundColor: settings?.eventMediumColor || '#f59e0b' }}
-                  ></div>
-                  <span className={isTema3 ? 'text-slate-600' : isTema2 ? 'text-violet-200' : 'text-slate-300'}>Médio</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div 
-                    className="w-2.5 h-2.5 rounded-full" 
-                    style={{ backgroundColor: settings?.eventImportantColor || '#ef4444' }}
-                  ></div>
-                  <span className={isTema3 ? 'text-slate-600' : isTema2 ? 'text-violet-200' : 'text-slate-300'}>Importante</span>
-                </div>
+                {selectedFolder === null ? (
+                  <span className={isTema3 ? 'text-slate-500' : isTema2 ? 'text-violet-300/80' : 'text-slate-400'}>
+                    Cores = pastas (em &quot;Todos&quot;)
+                  </span>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: settings?.eventSimpleColor || '#10b981' }} />
+                      <span className={isTema3 ? 'text-slate-600' : isTema2 ? 'text-violet-200' : 'text-slate-300'}>Simples</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: settings?.eventMediumColor || '#f59e0b' }} />
+                      <span className={isTema3 ? 'text-slate-600' : isTema2 ? 'text-violet-200' : 'text-slate-300'}>Médio</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: settings?.eventImportantColor || '#ef4444' }} />
+                      <span className={isTema3 ? 'text-slate-600' : isTema2 ? 'text-violet-200' : 'text-slate-300'}>Importante</span>
+                    </div>
+                  </>
+                )}
               </div>
               {allEvents.some(e => e.endDate) && (
                 <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
@@ -728,6 +757,8 @@ export default function UserTimelinePage(props: PageProps) {
               onEventDeleted={loadUserData}
               onTaskEdited={loadUserData}
               eventIdsWithViews={eventIdsWithViews}
+              colorByFolder={selectedFolder === null}
+              folderColorMap={folders.length > 0 ? folders.reduce<Record<string, string>>((acc, f) => ({ ...acc, [f.name]: f.color }), {}) : undefined}
             />
           </div>
 

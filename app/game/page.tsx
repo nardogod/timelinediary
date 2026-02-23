@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Briefcase, Home, Coins, Heart, Zap, Wrench, ShoppingBag, Target, Check, Building2 } from 'lucide-react';
+import { ArrowLeft, Briefcase, Home, Coins, Heart, Zap, Wrench, ShoppingBag, Target, Check, Building2, ChevronDown, ChevronRight } from 'lucide-react';
 import GameProfileCard from '@/components/game/GameProfileCard';
 import { LevelUpEffect, type LevelUpPayload } from '@/components/game/LevelUpEffect';
 import type { GameProfile } from '@/lib/db/game-types';
@@ -30,20 +30,37 @@ export default function GamePage() {
   const [profile, setProfile] = useState<GameProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [shopCatalog, setShopCatalog] = useState<{
-    catalog: { cover: { id: string; name: string; price: number; imagePath: string }[]; avatar: { id: string; name: string; price: number; imagePath: string; unlockOnlyByMission?: boolean }[]; pet: { id: string; name: string; price: number; imagePath: string }[] };
+    catalog: {
+      cover: { id: string; name: string; price: number; imagePath: string }[];
+      avatar: { id: string; name: string; price: number; imagePath: string; unlockOnlyByMission?: boolean; unlockMissionName?: string; unlockMissionRequirement?: string; previousAvatarName?: string | null }[];
+      pet: { id: string; name: string; price: number; imagePath: string }[];
+      guardian_item: { id: string; name: string; price: number; imagePath: string; unlockMissionId?: string; unlocked?: boolean; bonus?: { stress_reduce_percent?: number; xp_percent?: number; coins_percent?: number } }[];
+    };
     owned: OwnedItems;
   } | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
+  /** Quais seções da loja estão expandidas (menu minimizável). */
+  const [shopSectionsOpen, setShopSectionsOpen] = useState<Record<string, boolean>>({ cover: true, avatar: false, pet: false, guardian_item: false });
   const [purchasing, setPurchasing] = useState<string | null>(null);
+
+  const toggleShopSection = (key: string) => {
+    setShopSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
   const [missions, setMissions] = useState<Array<{
     id: string;
     name: string;
     description: string;
     requirement: string;
-    reward: { type: string; item_type?: string; item_id?: string; amount?: number };
+    reward: { type: string; item_type?: string; item_id?: string; amount?: number; avatarUnlockId?: string; badgeId?: string };
     completed: boolean;
+    difficulty?: 'easy' | 'medium' | 'hard';
+    arcId?: string;
+    arcName?: string;
+    arcStory?: string;
   }> | null>(null);
   const [missionsOpen, setMissionsOpen] = useState(false);
+  /** Avatar cujas missões estão sendo exibidas (derivado do perfil ao abrir; ao escolher avatar na loja, atualiza). */
+  const [missionFilterAvatarId, setMissionFilterAvatarId] = useState<string | null>(null);
   const [roomsData, setRoomsData] = useState<{
     catalog: { house: { id: string; name: string; price: number; relax_extra: number; health_bonus?: number }[]; work: { id: string; name: string; price: number; work_coins_extra: number; work_health_extra: number }[] };
     owned: { house: string[]; work: string[] };
@@ -153,6 +170,9 @@ export default function GamePage() {
   }, []);
 
   const handleAvatarChange = useCallback(async (avatarPath: string) => {
+    const match = avatarPath.match(/personagem(\d+)\.png$/);
+    const avatarId = match ? `personagem${match[1]}` : null;
+    if (avatarId) setMissionFilterAvatarId(avatarId);
     setProfile((prev) => (prev ? { ...prev, avatar_image_url: avatarPath } : null));
     try {
       const res = await fetch('/api/game/profile', {
@@ -369,21 +389,32 @@ export default function GamePage() {
             </div>
           </button>
           {shopOpen && shopCatalog && status !== null && (
-            <div className="mt-4 pt-4 border-t border-slate-700 space-y-4">
-              <p className="text-sm text-slate-400">Moedas: <strong className="text-amber-300">{status.coins}</strong></p>
-              {(['cover', 'avatar', 'pet'] as const).map((type) => (
-                <div key={type}>
-                  <h4 className="text-xs font-medium text-slate-500 uppercase mb-2">
-                    {type === 'cover' ? 'Capas' : type === 'avatar' ? 'Avatares' : 'Pets'}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
+            <div className="mt-4 pt-4 border-t border-slate-700 space-y-2">
+              <p className="text-sm text-slate-400 mb-3">Moedas: <strong className="text-amber-300">{status.coins}</strong></p>
+              {(['cover', 'avatar', 'pet'] as const).map((type) => {
+                const label = type === 'cover' ? 'Capas' : type === 'avatar' ? 'Avatares' : 'Pets';
+                const isOpen = shopSectionsOpen[type];
+                return (
+                <div key={type} className="rounded-lg border border-slate-600 bg-slate-900/50 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleShopSection(type)}
+                    className="w-full flex items-center gap-2 py-2 px-3 text-left hover:bg-slate-800/50 transition-colors"
+                  >
+                    {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                    <span className="text-xs font-medium text-slate-300 uppercase">{label}</span>
+                  </button>
+                  {isOpen && (
+                  <div className="px-3 pb-3 pt-0 flex flex-wrap gap-2">
                     {shopCatalog.catalog[type].map((item) => {
                       const owned = shopCatalog.owned[type].includes(item.id);
                       const key = `${type}-${item.id}`;
                       return (
                         <div
                           key={key}
-                          className="relative rounded-lg border border-slate-600 bg-slate-900/80 p-2 flex flex-col items-center min-w-[80px]"
+                          className={`relative rounded-lg border border-slate-600 bg-slate-900/80 p-2 flex flex-col items-center min-w-[80px] ${type === 'avatar' && owned ? 'cursor-pointer hover:border-amber-500/50' : ''}`}
+                          role={type === 'avatar' && owned ? 'button' : undefined}
+                          onClick={type === 'avatar' && owned ? () => setMissionFilterAvatarId(item.id) : undefined}
                         >
                           {item.imagePath ? (
                             type === 'avatar' ? (
@@ -407,9 +438,20 @@ export default function GamePage() {
                           )}
                           <span className="text-xs text-slate-300 mt-1 truncate w-full text-center">{item.name}</span>
                           {owned ? (
-                            <span className="text-xs text-emerald-400">Possui</span>
+                            <span className="text-xs text-emerald-400">
+                              {type === 'avatar' ? 'Possui · Clique para ver missões' : 'Possui'}
+                            </span>
                           ) : type === 'avatar' && (item as { unlockOnlyByMission?: boolean }).unlockOnlyByMission ? (
-                            <span className="text-xs mt-1 text-amber-200/90 text-center">Desbloqueie completando a missão</span>
+                            <span className="text-xs mt-1 text-amber-200/90 text-center block">
+                              {(item as { previousAvatarName?: string | null }).previousAvatarName && (
+                                <>Complete o arco de <strong>{(item as { previousAvatarName: string }).previousAvatarName}</strong> (3 missões). </>
+                              )}
+                              Depois: missão <strong>{(item as { unlockMissionName?: string }).unlockMissionName ?? item.name}</strong>
+                              {(item as { unlockMissionRequirement?: string }).unlockMissionRequirement && (
+                                <> — {(item as { unlockMissionRequirement: string }).unlockMissionRequirement}</>
+                              )}
+                              . +2 missões (moedas e título).
+                            </span>
                           ) : (
                             <button
                               type="button"
@@ -440,8 +482,100 @@ export default function GamePage() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
-              ))}
+              );
+              })}
+              {shopCatalog.catalog.guardian_item && shopCatalog.catalog.guardian_item.length > 0 && (
+                <div className="rounded-lg border border-slate-600 bg-slate-900/50 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleShopSection('guardian_item')}
+                    className="w-full flex items-center gap-2 py-2 px-3 text-left hover:bg-slate-800/50 transition-colors"
+                  >
+                    {shopSectionsOpen.guardian_item ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                    <span className="text-xs font-medium text-slate-300 uppercase">Itens anti-stress (Guardiões)</span>
+                  </button>
+                  {shopSectionsOpen.guardian_item && (
+                  <>
+                  <p className="text-xs text-slate-400 px-3 pb-1">Desbloqueie completando as 3 missões do Guardião; depois compre e equipe.</p>
+                  <div className="px-3 pb-3 flex flex-wrap gap-2">
+                    {shopCatalog.catalog.guardian_item.map((item) => {
+                      const owned = shopCatalog.owned.guardian_item.includes(item.id);
+                      const equipped = profile?.antistress_item_id === item.id;
+                      const key = `guardian_item-${item.id}`;
+                      const bonusText = [
+                        item.bonus?.stress_reduce_percent && `-${item.bonus.stress_reduce_percent}% stress`,
+                        item.bonus?.xp_percent && `+${item.bonus.xp_percent}% XP`,
+                        item.bonus?.coins_percent && `+${item.bonus.coins_percent}% moedas`,
+                      ].filter(Boolean).join(', ');
+                      return (
+                        <div
+                          key={key}
+                          className={`relative rounded-lg border p-2 flex flex-col items-center min-w-[80px] ${
+                            equipped ? 'border-amber-500/80 bg-amber-900/20' : 'border-slate-600 bg-slate-900/80'
+                          } ${owned ? 'cursor-pointer hover:border-amber-500/50' : ''}`}
+                          role={owned ? 'button' : undefined}
+                          onClick={owned ? async () => {
+                            const next = equipped ? null : item.id;
+                            const res = await fetch('/api/game/profile', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ antistress_item_id: next }),
+                            });
+                            if (res.ok) await loadStatus();
+                          } : undefined}
+                        >
+                          {item.imagePath ? (
+                            <div className="w-12 h-12 rounded-lg bg-slate-800 bg-cover bg-center flex items-center justify-center" style={{ backgroundImage: `url(${item.imagePath})` }}>
+                              {item.imagePath.endsWith('placeholder-item.svg') && <Zap className="w-6 h-6 text-slate-500" />}
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center"><Zap className="w-6 h-6 text-slate-500" /></div>
+                          )}
+                          <span className="text-xs text-slate-300 mt-1 truncate w-full text-center">{item.name}</span>
+                          {bonusText && <span className="text-[10px] text-emerald-400/90 mt-0.5 text-center">{bonusText}</span>}
+                          {!item.unlocked ? (
+                            <span className="text-xs mt-1 text-amber-200/80 text-center block">Complete as 3 missões do Guardião</span>
+                          ) : owned ? (
+                            <span className="text-xs mt-1 text-emerald-400">{equipped ? 'Equipado' : 'Clique para equipar'}</span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={status.coins < item.price || purchasing === key}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setPurchasing(key);
+                                try {
+                                  const res = await fetch('/api/game/shop/purchase', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ item_type: 'guardian_item', item_id: item.id }),
+                                  });
+                                  const data = await res.json().catch(() => ({}));
+                                  if (res.ok && data?.ok) {
+                                    await loadShopCatalog();
+                                    await loadStatus();
+                                  } else if (data?.error) {
+                                    alert(data.error);
+                                  }
+                                } finally {
+                                  setPurchasing(null);
+                                }
+                              }}
+                              className="text-xs mt-1 py-1 px-2 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:pointer-events-none"
+                            >
+                              {item.price} moedas
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -457,42 +591,76 @@ export default function GamePage() {
             </div>
             <div>
               <h3 className="font-medium">Missões</h3>
-              <p className="text-sm text-slate-400">Requisitos e desbloqueio de itens</p>
+              <p className="text-sm text-slate-400">Requisitos e desbloqueio por avatar</p>
             </div>
           </button>
-          {missionsOpen && missions && missions.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-slate-700 space-y-3">
-              {missions.map((m) => (
-                <div
-                  key={m.id}
-                  className={`rounded-lg border p-3 ${
-                    m.completed ? 'border-emerald-600/50 bg-emerald-900/20' : 'border-slate-600 bg-slate-900/50'
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="flex-shrink-0 mt-0.5">
-                      {m.completed ? (
-                        <Check className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <span className="w-5 h-5 rounded-full border-2 border-slate-500" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-medium text-white">{m.name}</h4>
-                      <p className="text-sm text-slate-400 mt-0.5">{m.description}</p>
-                      <p className="text-xs text-slate-500 mt-1">{m.requirement}</p>
-                      <p className="text-xs text-amber-300/90 mt-1">
-                        Recompensa:{' '}
-                        {m.reward.type === 'unlock_item'
-                          ? `Desbloqueia ${m.reward.item_type === 'cover' ? 'capa' : m.reward.item_type === 'avatar' ? 'avatar' : 'pet'}`
-                          : `${m.reward.amount} moedas`}
-                      </p>
-                    </div>
+          {missionsOpen && missions && missions.length > 0 && (() => {
+            const fromPath = profile?.avatar_image_url?.match(/personagem(\d+)\.png$/);
+            const currentAvatarId = missionFilterAvatarId ?? (fromPath ? `personagem${fromPath[1]}` : null) ?? 'personagem9';
+            const n = currentAvatarId.replace(/^personagem/, '') || '9';
+            const avatarMissionIds = [`avatar_${n}_1`, `avatar_${n}_2`, `avatar_${n}_3`];
+            const avatarMissions = missions.filter((m) => avatarMissionIds.includes(m.id));
+            const avatarName = shopCatalog?.catalog.avatar.find((a) => a.id === currentAvatarId)?.name ?? `Personagem ${n}`;
+            return (
+              <div className="mt-4 pt-4 border-t border-slate-700 space-y-3">
+                <p className="text-sm text-slate-400">
+                  Missões de <strong className="text-white">{avatarName}</strong> — escolha outro avatar na loja para ver as missões dele.
+                </p>
+                {avatarMissions.length > 0 && avatarMissions[0]?.arcName && (
+                  <div className="rounded-lg border border-slate-600 bg-slate-800/50 p-2.5">
+                    <p className="text-xs font-medium text-amber-200/90">{avatarMissions[0].arcName}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{avatarMissions[0].arcStory}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+                <p className="text-xs text-slate-500">
+                  <strong>Grande recompensa:</strong> complete as 3 missões deste personagem para desbloquear o próximo avatar e ganhar o título &quot;Conquista&quot; no mural.
+                </p>
+                {avatarMissions.length > 0 ? (
+                  avatarMissions.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`rounded-lg border p-3 ${
+                        m.completed ? 'border-emerald-600/50 bg-emerald-900/20' : 'border-slate-600 bg-slate-900/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="flex-shrink-0 mt-0.5">
+                          {m.completed ? (
+                            <Check className="w-5 h-5 text-emerald-400" />
+                          ) : (
+                            <span className="w-5 h-5 rounded-full border-2 border-slate-500" />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-medium text-white">{m.name}</h4>
+                            {m.difficulty && (
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                m.difficulty === 'easy' ? 'bg-emerald-900/50 text-emerald-300' :
+                                m.difficulty === 'medium' ? 'bg-amber-900/50 text-amber-300' : 'bg-rose-900/50 text-rose-300'
+                              }`}>
+                                {m.difficulty === 'easy' ? 'Fácil' : m.difficulty === 'medium' ? 'Médio' : 'Difícil'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-400 mt-0.5">{m.description}</p>
+                          <p className="text-xs text-slate-500 mt-1">{m.requirement}</p>
+                          <p className="text-xs text-amber-300/90 mt-1">
+                            Recompensa:{' '}
+                            {typeof (m.reward as { amount?: number }).amount === 'number' && `${(m.reward as { amount: number }).amount} moedas`}
+                            {(m.reward as { avatarUnlockId?: string }).avatarUnlockId && ' · Desbloqueia avatar'}
+                            {(m.reward as { badgeId?: string }).badgeId && ' · Título de conquista'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">Nenhuma missão de avatar para este personagem.</p>
+                )}
+              </div>
+            );
+          })()}
         </section>
 
         <section className="rounded-xl bg-slate-800/80 p-4 border border-slate-700">

@@ -4,6 +4,7 @@ import { getEventById, updateEvent } from '@/lib/db/events';
 import { getFolderById } from '@/lib/db/folders';
 import { getTaskById, createTask, updateTask } from '@/lib/db/tasks';
 import { recordTaskCompletedForGame } from '@/lib/db/game';
+import { evaluateAndGrantMissions } from '@/lib/db/missions';
 
 /**
  * Marca o evento como concluído: cria ou usa a tarefa vinculada, marca como concluída e aplica recompensas (XP, moedas, saúde, stress) do Meu Mundo.
@@ -89,6 +90,9 @@ export async function POST(
           xpEarned: result.xpEarned,
           died: result.died,
         };
+      }
+      if (result.ok) {
+        await evaluateAndGrantMissions(userId);
       }
     } catch (e) {
       console.error('[events/complete] recordTaskCompletedForGame', e);

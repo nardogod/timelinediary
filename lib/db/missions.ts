@@ -1,5 +1,5 @@
 import { getNeon } from '@/lib/neon';
-import { getOrCreateGameProfile } from '@/lib/db/game';
+import { getOrCreateGameProfile, getGameProfile, updateGameProfile } from '@/lib/db/game';
 import { MISSIONS, type MissionDef, type MissionReward } from '@/lib/game/missions';
 
 export async function getCompletedMissionIds(userId: string): Promise<string[]> {
@@ -22,22 +22,21 @@ export async function recordMissionCompleted(
   `;
 }
 
-async function grantReward(
-  userId: string,
-  reward: MissionReward
-): Promise<void> {
+async function grantReward(userId: string, reward: MissionReward): Promise<void> {
+  await getOrCreateGameProfile(userId);
   const sql = getNeon();
-  if (reward.type === 'unlock_item') {
-    await sql`
-      INSERT INTO game_owned_items (user_id, item_type, item_id)
-      VALUES (${userId}, ${reward.item_type}, ${reward.item_id})
-      ON CONFLICT (user_id, item_type, item_id) DO NOTHING
-    `;
-  } else {
-    const profile = await getOrCreateGameProfile(userId);
+  if (reward.type === 'coins' && reward.amount > 0) {
     await sql`
       UPDATE game_profiles SET coins = coins + ${reward.amount}, updated_at = NOW() WHERE user_id = ${userId}
     `;
+  }
+  if (reward.badgeId) {
+    const profile = await getGameProfile(userId);
+    if (profile) {
+      const earned = new Set(profile.earned_badge_ids ?? []);
+      earned.add(reward.badgeId);
+      await updateGameProfile(userId, { earned_badge_ids: [...earned] });
+    }
   }
 }
 

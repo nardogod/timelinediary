@@ -19,9 +19,11 @@ interface GroupedTaskEventsProps {
   onEventsUpdate?: () => void;
   onEventDeleted?: () => void;
   canEdit?: boolean;
+  colorByFolder?: boolean;
+  folderColorMap?: Record<string, string>;
 }
 
-function GroupedTaskEvents({ events, position, placement, layer, settings, onTaskEdit, onEventsUpdate, onEventDeleted, canEdit }: GroupedTaskEventsProps) {
+function GroupedTaskEvents({ events, position, placement, layer, settings, onTaskEdit, onEventsUpdate, onEventDeleted, canEdit, colorByFolder, folderColorMap }: GroupedTaskEventsProps) {
   const { showToast } = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -30,7 +32,10 @@ function GroupedTaskEvents({ events, position, placement, layer, settings, onTas
   const containerRef = useRef<HTMLDivElement>(null);
   const isTop = placement === 'top';
 
-  const color = settings?.eventSimpleColor || EVENT_COLORS.simple;
+  const firstEvent = events[0];
+  const color = (colorByFolder && folderColorMap && firstEvent?.folder && folderColorMap[firstEvent.folder])
+    ? folderColorMap[firstEvent.folder]
+    : (settings?.eventSimpleColor || EVENT_COLORS.simple);
 
   // Extrai apenas o título da tarefa (remove " - HH:MM")
   const getTaskTitle = useCallback((title: string) => {
