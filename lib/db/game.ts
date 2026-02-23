@@ -345,8 +345,9 @@ const STRESS_XP_MULTIPLIER_ABOVE_30 = 0.6;
 const STRESS_XP_MULTIPLIER_ABOVE_60 = 0.3;
 /** Stress pode ultrapassar 100% até este valor (Burnout piora até relaxar). */
 const STRESS_CAP_BURNOUT = 120;
-/** Saúde ≤50%: status "doente"; trabalho rende menos, mais stress, menos XP. */
+/** Saúde ≤50% ou stress >75%: status "doente"; trabalho rende menos, mais stress, menos XP. */
 const SICK_HEALTH_THRESHOLD = 50;
+const SICK_STRESS_THRESHOLD = 75;
 const SICK_COINS_MULTIPLIER = 0.5;
 const SICK_XP_MULTIPLIER = 0.5;
 const SICK_HEALTH_CHANGE_MULTIPLIER = 1.5;
@@ -453,12 +454,21 @@ export async function recordTaskCompletedForGame(
     coinsEarned = Math.floor(coinsEarned * (1 + guardianBonus.coins_percent / 100));
   }
 
-  // Status "doente" (saúde ≤50%): trabalho rende menos, mais stress, menos XP
-  if (activityType === 'trabalho' && profile.health <= SICK_HEALTH_THRESHOLD) {
+  // Status "doente" (saúde ≤50% ou stress >75%): trabalho rende menos, mais stress, menos XP
+  const isSick = profile.health <= SICK_HEALTH_THRESHOLD || profile.stress > SICK_STRESS_THRESHOLD;
+  if (activityType === 'trabalho' && isSick) {
     coinsEarned = Math.floor(coinsEarned * SICK_COINS_MULTIPLIER);
     xpEarned = Math.floor(xpEarned * SICK_XP_MULTIPLIER);
     healthChange = Math.round(healthChange * SICK_HEALTH_CHANGE_MULTIPLIER);
     stressChange = Math.round(stressChange * SICK_STRESS_CHANGE_MULTIPLIER);
+  }
+
+  // Punição extra +5% em atividades de trabalho (moedas, XP, saúde e stress)
+  if (activityType === 'trabalho') {
+    coinsEarned = Math.floor(coinsEarned * 0.95);
+    xpEarned = Math.floor(xpEarned * 0.95);
+    if (healthChange < 0) healthChange = Math.floor(healthChange * 1.05);
+    if (stressChange > 0) stressChange = Math.ceil(stressChange * 1.05);
   }
 
   // Catch-up: bônus nas primeiras atividades ao voltar após 1+ dias sem jogar

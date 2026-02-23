@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Heart, Zap, Coins, Briefcase, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getWorkRoomCoinsReward, getWorkRoomHealthCost, type WorkRoomDef } from '@/lib/game/rooms-catalog';
 import { LevelUpEffect, type LevelUpPayload } from '@/components/game/LevelUpEffect';
@@ -40,6 +40,12 @@ const COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 horas
 export default function TrabalhoPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const viewerUserId = searchParams.get('userId');
+  const fromUsername = searchParams.get('from');
+  const isViewer = !!viewerUserId && viewerUserId !== (user?.id ?? null);
+  const gameQuery = [viewerUserId && `userId=${encodeURIComponent(viewerUserId)}`, fromUsername && `from=${encodeURIComponent(fromUsername)}`].filter(Boolean).join('&');
+  const backHref = gameQuery ? `/game?${gameQuery}` : '/game';
   const [status, setStatus] = useState<GameStatus | null>(null);
   const [profile, setProfile] = useState<GameProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,17 +62,19 @@ export default function TrabalhoPage() {
   const loadRooms = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/game/rooms');
+      const qs = viewerUserId ? `?userId=${encodeURIComponent(viewerUserId)}` : '';
+      const res = await fetch(`/api/game/rooms${qs}`);
       if (res.ok) setRoomsData(await res.json());
     } catch (e) {
       console.error('[TrabalhoPage] Erro ao carregar salas:', e);
     }
-  }, [user]);
+  }, [user, viewerUserId]);
 
   const loadStatus = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/game/status', { cache: 'no-store' });
+      const qs = viewerUserId ? `?userId=${encodeURIComponent(viewerUserId)}` : '';
+      const res = await fetch(`/api/game/status${qs}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -76,12 +84,13 @@ export default function TrabalhoPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, viewerUserId]);
 
   const loadProfile = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/game/profile');
+      const qs = viewerUserId ? `?userId=${encodeURIComponent(viewerUserId)}` : '';
+      const res = await fetch(`/api/game/profile${qs}`);
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
@@ -89,7 +98,7 @@ export default function TrabalhoPage() {
     } catch (e) {
       console.error('[TrabalhoPage] Erro ao carregar perfil:', e);
     }
-  }, [user]);
+  }, [user, viewerUserId]);
 
   const workRooms = roomsData?.catalog?.work ?? [];
   const currentWorkRoom = workRooms[viewingWorkIndex];
@@ -251,10 +260,10 @@ export default function TrabalhoPage() {
         }}
       />
       <header className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-        <Link href="/game" className="p-2 -m-2 rounded-lg hover:bg-slate-800" aria-label="Voltar">
+        <Link href={backHref} className="p-2 -m-2 rounded-lg hover:bg-slate-800" aria-label="Voltar">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="flex-1 text-lg font-semibold">Sala de Trabalho</h1>
+        <h1 className="flex-1 text-lg font-semibold">{isViewer ? 'Sala de Trabalho' : 'Sala de Trabalho'}</h1>
       </header>
 
       <main className="flex-1 overflow-auto p-4 flex flex-col gap-6 items-center">
@@ -311,7 +320,9 @@ export default function TrabalhoPage() {
                 </div>
               </div>
               <div className="rounded-b-xl border border-t-0 border-slate-600 bg-slate-800/80 px-4 py-3">
-                {ownsCurrentWork ? (
+                {isViewer ? (
+                  <p className="text-center text-slate-400 text-sm">Você está apenas visitando</p>
+                ) : ownsCurrentWork ? (
                   isWorkActive ? (
                     <button
                       type="button"
@@ -347,36 +358,38 @@ export default function TrabalhoPage() {
           )}
         </div>
 
-        <section className="rounded-xl bg-slate-800/80 p-4 space-y-3">
-          <h2 className="text-sm font-medium text-slate-300">Trabalhar (cooldown 3h)</h2>
-          {inCooldown ? (
-            <p className="text-slate-400 text-sm text-center">
-              Próximo uso em <strong className="text-white">
-                {cooldownSecondsLeft >= 3600
-                  ? `${Math.floor(cooldownSecondsLeft / 3600)}h ${Math.floor((cooldownSecondsLeft % 3600) / 60)}min`
-                  : cooldownSecondsLeft >= 60
-                    ? `${Math.floor(cooldownSecondsLeft / 60)}min`
-                    : `${cooldownSecondsLeft}s`}
-              </strong>
-            </p>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleWorkBonus}
-                disabled={workBonusLoading}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium"
-              >
-                <Briefcase className="w-4 h-4" />
-                {workBonusLoading ? 'Ativando...' : 'Trabalhar'}
-              </button>
-              <p className="text-xs text-slate-500 text-center">−10 saúde, +15 stress, +80 moedas, <strong>+50 XP</strong>. Hoje: tarefas dão mais moedas e menos stress.</p>
-              {workBonusError && (
-                <p className="text-amber-400 text-sm mt-2 text-center" role="alert">{workBonusError}</p>
-              )}
-            </>
-          )}
-        </section>
+        {!isViewer && (
+          <section className="rounded-xl bg-slate-800/80 p-4 space-y-3">
+            <h2 className="text-sm font-medium text-slate-300">Trabalhar (cooldown 3h)</h2>
+            {inCooldown ? (
+              <p className="text-slate-400 text-sm text-center">
+                Próximo uso em <strong className="text-white">
+                  {cooldownSecondsLeft >= 3600
+                    ? `${Math.floor(cooldownSecondsLeft / 3600)}h ${Math.floor((cooldownSecondsLeft % 3600) / 60)}min`
+                    : cooldownSecondsLeft >= 60
+                      ? `${Math.floor(cooldownSecondsLeft / 60)}min`
+                      : `${cooldownSecondsLeft}s`}
+                </strong>
+              </p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleWorkBonus}
+                  disabled={workBonusLoading}
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium"
+                >
+                  <Briefcase className="w-4 h-4" />
+                  {workBonusLoading ? 'Ativando...' : 'Trabalhar'}
+                </button>
+                <p className="text-xs text-slate-500 text-center">−10 saúde, +15 stress, +80 moedas, <strong>+50 XP</strong>. Hoje: tarefas dão mais moedas e menos stress.</p>
+                {workBonusError && (
+                  <p className="text-amber-400 text-sm mt-2 text-center" role="alert">{workBonusError}</p>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
         {status && (
           <section className="rounded-xl bg-slate-800/80 p-4 space-y-3">
@@ -384,7 +397,7 @@ export default function TrabalhoPage() {
             {status.is_sick && (
               <div className="flex items-center gap-2 rounded-lg bg-amber-900/50 border border-amber-600/50 px-3 py-2 text-amber-200 text-sm">
                 <span className="font-medium">Doente</span>
-                <span className="text-amber-300/90">— Trabalho rende menos XP e moedas, mais stress.</span>
+                <span className="text-amber-300/90">— Saúde baixa ou stress &gt;75%: trabalho rende menos XP e moedas, mais stress.</span>
               </div>
             )}
             {status.is_burnout && (

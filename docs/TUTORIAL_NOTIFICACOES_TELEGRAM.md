@@ -2,6 +2,8 @@
 
 Este tutorial explica como configurar e ativar as notificações Telegram para o sistema de notas/tarefas.
 
+**App em produção:** [https://timelinediary.vercel.app](https://timelinediary.vercel.app)
+
 ---
 
 ## ✅ O que já está implementado
@@ -72,48 +74,56 @@ O `vercel.json` já está configurado com:
 
 #### Opção B: Cron externo (recomendado para Hobby)
 
-Use um serviço externo como **cron-job.org** ou **EasyCron**:
+Use um serviço externo como **cron-job.org** ou **EasyCron**. Abaixo o passo a passo para o [cron-job.org](https://cron-job.org).
+
+**URL do app (produção):** [https://timelinediary.vercel.app](https://timelinediary.vercel.app)
 
 **Passo a passo (cron-job.org):**
 
-1. Acesse https://cron-job.org e crie uma conta
-2. Clique em **Create cronjob**
-3. Configure:
-   - **Title**: `Timeline Diary - Notificações Telegram`
-   - **Address**: `https://seu-dominio.vercel.app/api/cron/telegram-notifications`
-   - **Schedule**: `0 12 * * *` (diário às 12:00 UTC)
-   - **Request method**: `GET`
-   - **Request headers**: Adicione:
+1. Acesse https://cron-job.org e crie uma conta (ou faça login).
+2. Clique em **Create cronjob**.
+3. **Aba COMMON:**
+   - **Title:** `Timeline Diary - Notificações Telegram`
+   - **URL:** use a URL **completa** do endpoint (não só o domínio):
      ```
-     Authorization: Bearer seu_CRON_SECRET_aqui
+     https://timelinediary.vercel.app/api/cron/telegram-notifications
      ```
-     Ou use:
-     ```
-     x-cron-secret: seu_CRON_SECRET_aqui
-     ```
-4. Salve e ative o cron job
+   - **Enable job:** deixe ligado (on).
+   - **Schedule:** escolha **"Every day at 12:00"** (crontab `0 12 * * *` = 12:00 UTC).
+   - Se quiser horário de Brasília: em **Time zone** (aba ADVANCED) use `America/Sao_Paulo`; 12:00 UTC = 09:00 BRT.
+4. **Aba ADVANCED:**
+   - **Request method:** `GET` (já é o padrão).
+   - Em **Headers**, clique em **"+ ADD"** e adicione um header de autorização:
+     - **Name:** `Authorization`  
+     - **Value:** `Bearer SEU_CRON_SECRET_AQUI`  
+     (substitua `SEU_CRON_SECRET_AQUI` pelo valor de `CRON_SECRET` configurado na Vercel.)
+     - Alternativa: **Name** `x-cron-secret`, **Value** `SEU_CRON_SECRET_AQUI`.
+5. Clique em **CREATE** (ou use **TEST RUN** para testar antes).
 
-**Nota:** O horário `0 12 * * *` é 12:00 UTC. Para ajustar:
-- **Brasil (UTC-3)**: `0 15 * * *` = 12:00 horário de Brasília
-- **Brasil (UTC-3)**: `0 9 * * *` = 06:00 horário de Brasília
+**Nota sobre horário:** O crontab `0 12 * * *` é 12:00 UTC. Para disparar em horário de Brasília (UTC-3):
+- `0 15 * * *` = 12:00 em Brasília
+- `0 9 * * *` = 06:00 em Brasília
 
 ---
 
 ### 3. Testar manualmente (opcional)
 
-Antes de configurar o cron, teste o endpoint manualmente:
+Antes de confiar no cron, teste o endpoint:
 
-**PowerShell:**
-```powershell
-$headers = @{
-    "Authorization" = "Bearer seu_CRON_SECRET_aqui"
-}
-Invoke-RestMethod -Uri "http://localhost:3000/api/cron/telegram-notifications" -Method GET -Headers $headers
+**Produção (Vercel):**
+```bash
+curl -H "Authorization: Bearer SEU_CRON_SECRET" https://timelinediary.vercel.app/api/cron/telegram-notifications
 ```
 
-**Ou curl:**
+**PowerShell (produção):**
+```powershell
+$headers = @{ "Authorization" = "Bearer SEU_CRON_SECRET" }
+Invoke-RestMethod -Uri "https://timelinediary.vercel.app/api/cron/telegram-notifications" -Method GET -Headers $headers
+```
+
+**Local (npm run dev):**
 ```bash
-curl -H "Authorization: Bearer seu_CRON_SECRET_aqui" http://localhost:3000/api/cron/telegram-notifications
+curl -H "Authorization: Bearer SEU_CRON_SECRET" http://localhost:3000/api/cron/telegram-notifications
 ```
 
 **Resposta esperada:**
@@ -138,22 +148,45 @@ curl -H "Authorization: Bearer seu_CRON_SECRET_aqui" http://localhost:3000/api/c
 
 ## 📋 Resumo das notificações
 
-O sistema envia três tipos de notificações:
+Todas rodam no **mesmo horário** em que o cron está agendado (ex.: todo dia às 12:00 UTC, ou ao horário que você definiu no cron-job.org). Para cada usuário com Telegram vinculado, o sistema verifica as três condições abaixo e envia **no máximo uma mensagem por tipo** (pendentes, vence amanhã, parabéns).
 
-### 1. Pendentes por pasta
-**Quando:** Diariamente (via cron)
-**Mensagem:** `Você tem 3 tarefas pendentes em 'Trabalho'.`
-**Condição:** Usuário tem Telegram vinculado + há tarefas não concluídas
+| Tipo | Frequência | Condição | Conteúdo |
+|------|------------|----------|----------|
+| **Resumo diário** | Todo dia (quando o cron roda) | Pendentes, vence amanhã ou eventos esta semana | Tarefas pendentes (títulos por pasta), tarefas que vencem amanhã (títulos), eventos da timeline (amanhã até domingo) |
+| **Parabéns semanal** | Só aos **domingos** (quando o cron roda) | Concluiu ≥ 1 tarefa na semana | Ver abaixo |
 
-### 2. Vence amanhã
-**Quando:** Diariamente (via cron)
-**Mensagem:** `Lembrete: 'Postar reels' vence amanhã`
-**Condição:** Usuário tem Telegram vinculado + há tarefas com `due_date` = amanhã (timezone America/Sao_Paulo)
+### 1. Resumo diário (uma mensagem)
+**Quando:** Diariamente, no horário do cron.  
+**Condição:** Usuário tem Telegram vinculado e pelo menos um dos itens: tarefas pendentes, tarefas que vencem amanhã, ou eventos na timeline (amanhã ou esta semana).  
+**Conteúdo real:** o sistema envia **apenas dados reais** do usuário (nomes das pastas, títulos das tarefas e eventos tal como foram cadastrados). Não há mensagens de teste genéricas. O formato da mensagem é:
 
-### 3. Parabéns semanal
-**Quando:** Apenas aos domingos (via cron)
-**Mensagem:** `Parabéns! Você concluiu 5 tarefas esta semana 🎉`
-**Condição:** Usuário tem Telegram vinculado + concluiu pelo menos 1 tarefa na semana atual
+```
+📋 Pendentes:
+Em 'trabalho':
+  • Revisar relatório
+  • Enviar e-mail para o cliente
+Em 'lazer':
+  • Academia
+
+⏰ Amanhã vence:
+  • Revisar relatório vence amanhã
+
+📅 Amanhã e esta semana na timeline:
+  • Reunião com equipe (21/02)
+  • Entrega do projeto (23/02)
+```
+
+- **Pendentes:** lista o **título exato** de cada tarefa não concluída, agrupada por pasta (ex.: em "lazer" as tarefas "klkl,I," e "a" aparecem com esses nomes).  
+- **Vence amanhã:** lista o título de cada tarefa com data de vencimento = amanhã.  
+- **Timeline:** eventos cadastrados na timeline cuja data é amanhã ou ainda esta semana (até domingo), com título e data (dd/MM).
+
+### 2. Parabéns semanal
+**Quando:** Apenas aos domingos, no horário do cron.  
+**Condição:** Usuário tem Telegram vinculado + concluiu pelo menos 1 tarefa na semana atual.  
+**Mensagem (exemplo):**
+```
+🎉 Parabéns! Você concluiu 5 tarefas esta semana.
+```
 
 ---
 

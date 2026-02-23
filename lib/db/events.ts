@@ -195,6 +195,23 @@ export async function createMultipleEvents(eventsData: Array<{
   return createdEvents;
 }
 
+/** Eventos do usuário com data entre startYyyyMmDd e endYyyyMmDd (inclusive). */
+export async function getEventsBetween(
+  userId: string,
+  startYyyyMmDd: string,
+  endYyyyMmDd: string
+): Promise<Event[]> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT * FROM events
+    WHERE user_id = ${userId}
+      AND date >= ${startYyyyMmDd}
+      AND date <= ${endYyyyMmDd}
+    ORDER BY date ASC, title
+  `;
+  return (rows as Record<string, unknown>[]).map(rowToEvent);
+}
+
 /** Busca eventos do usuário por título (case-insensitive, parcial). */
 export async function searchEventsByUserId(userId: string, query: string): Promise<Event[]> {
   if (!query || query.trim().length === 0) {

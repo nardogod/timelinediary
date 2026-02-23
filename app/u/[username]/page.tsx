@@ -554,7 +554,7 @@ export default function UserTimelinePage(props: PageProps) {
         )}
         {/* Header com perfil e controles — layout mobile primeiro */}
         <div
-          className={`backdrop-blur-md border-b px-3 py-2 sm:px-4 sm:py-3 flex-shrink-0 relative z-10 transition-colors duration-300 safe-area-top ${
+          className={`backdrop-blur-md border-b px-3 py-2 sm:px-4 sm:py-3 flex-shrink-0 relative z-[110] transition-colors duration-300 safe-area-top ${
             isTema3
               ? 'bg-white/70 border-slate-200/60 shadow-sm'
               : isTema2
@@ -695,7 +695,7 @@ export default function UserTimelinePage(props: PageProps) {
             {/* Legenda */}
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2 sm:gap-4 justify-center text-xs">
-                <MeuMundoButton />
+                <MeuMundoButton userId={profileUser?.id} fromUsername={profileUser?.username} />
                 {selectedFolder === null ? (
                   <span className={isTema3 ? 'text-slate-500' : isTema2 ? 'text-violet-300/80' : 'text-slate-400'}>
                     Cores = pastas (em &quot;Todos&quot;)

@@ -17,6 +17,7 @@
     "db:migrate:game": "node scripts/run-neon-migration-009.mjs",
     "db:check": "node scripts/check-neon-tables.mjs",
     "telegram:test": "node scripts/test-telegram.mjs",
+    "telegram:test-all": "node scripts/send-telegram-test-all.mjs",
     "telegram:webhook": "node scripts/set-telegram-webhook.mjs",
     "telegram:commands": "node scripts/set-telegram-commands.mjs",
     "avatars:generate": "node scripts/generate-avatars.mjs"

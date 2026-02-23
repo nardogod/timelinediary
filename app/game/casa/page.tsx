@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import RoomCanvasBase from '@/components/game/RoomCanvasBase';
@@ -33,6 +33,12 @@ type RoomsData = {
 export default function CasaPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const viewerUserId = searchParams.get('userId');
+  const fromUsername = searchParams.get('from');
+  const isViewer = !!viewerUserId && viewerUserId !== (user?.id ?? null);
+  const gameQuery = [viewerUserId && `userId=${encodeURIComponent(viewerUserId)}`, fromUsername && `from=${encodeURIComponent(fromUsername)}`].filter(Boolean).join('&');
+  const backHref = gameQuery ? `/game?${gameQuery}` : '/game';
   const [config, setConfig] = useState<CasaRoomConfig | null>(null);
   const [profile, setProfile] = useState<GameProfile | null>(null);
   const [roomsData, setRoomsData] = useState<RoomsData | null>(null);
@@ -46,7 +52,8 @@ export default function CasaPage() {
   const loadProfile = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/game/profile');
+      const qs = viewerUserId ? `?userId=${encodeURIComponent(viewerUserId)}` : '';
+      const res = await fetch(`/api/game/profile${qs}`);
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
@@ -54,17 +61,18 @@ export default function CasaPage() {
     } catch (e) {
       console.error('[CasaPage] Erro ao carregar perfil:', e);
     }
-  }, [user]);
+  }, [user, viewerUserId]);
 
   const loadRooms = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/game/rooms');
+      const qs = viewerUserId ? `?userId=${encodeURIComponent(viewerUserId)}` : '';
+      const res = await fetch(`/api/game/rooms${qs}`);
       if (res.ok) setRoomsData(await res.json());
     } catch (e) {
       console.error('[CasaPage] Erro ao carregar casas:', e);
     }
-  }, [user]);
+  }, [user, viewerUserId]);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -204,10 +212,10 @@ export default function CasaPage() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-900 text-white">
       <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-        <Link href="/game" className="p-2 -m-2 rounded-lg hover:bg-slate-800" aria-label="Voltar">
+        <Link href={backHref} className="p-2 -m-2 rounded-lg hover:bg-slate-800" aria-label="Voltar">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-lg font-semibold">Minha Casa</h1>
+        <h1 className="text-lg font-semibold">{isViewer ? 'Casa' : 'Minha Casa'}</h1>
       </header>
       <main className="flex-1 overflow-auto p-4 flex flex-col items-center">
         <div className="w-full max-w-[min(100%,400px)] space-y-0">
@@ -269,10 +277,12 @@ export default function CasaPage() {
             )}
           </div>
 
-          {/* Vermelho: botão preço / Possui / Ativar este quarto */}
+          {/* Vermelho: botão preço / Possui / Ativar este quarto (oculto em modo visitante) */}
           {currentHouse && (
             <div className="rounded-b-xl border border-t-0 border-slate-600 bg-slate-800/80 px-4 py-3">
-              {ownsCurrent ? (
+              {isViewer ? (
+                <p className="text-center text-slate-400 text-sm">Você está apenas visitando</p>
+              ) : ownsCurrent ? (
                 isActive ? (
                   <button
                     type="button"
@@ -310,10 +320,10 @@ export default function CasaPage() {
         {profile != null && (
           <section className="mt-4 w-full max-w-[min(100%,400px)] rounded-xl bg-slate-800/80 p-4 space-y-2">
             <h2 className="text-sm font-medium text-slate-300">Status</h2>
-            {profile.health <= 50 && (
+            {(profile.health <= 50 || profile.stress > 75) && (
               <div className="flex items-center gap-2 rounded-lg bg-amber-900/50 border border-amber-600/50 px-3 py-2 text-amber-200 text-sm">
                 <span className="font-medium">Doente</span>
-                <span className="text-amber-300/90">— Relaxar ajuda a recuperar saúde.</span>
+                <span className="text-amber-300/90">— Saúde baixa ou stress &gt;75%. Relaxar ajuda a recuperar.</span>
               </div>
             )}
             {profile.stress >= 100 && (
@@ -335,35 +345,37 @@ export default function CasaPage() {
           </section>
         )}
 
-        <section className="mt-4 w-full max-w-[min(100%,400px)] rounded-xl bg-slate-800/80 p-4">
-          <h2 className="text-sm font-medium text-slate-300 mb-2">Relaxar (cooldown 3h)</h2>
-          {inCooldown ? (
-            <p className="text-slate-400 text-sm text-center">
-              Próximo uso em <strong className="text-white">
-                {cooldownSecondsLeft >= 3600
-                  ? `${Math.floor(cooldownSecondsLeft / 3600)}h ${Math.floor((cooldownSecondsLeft % 3600) / 60)}min`
-                  : cooldownSecondsLeft >= 60
-                    ? `${Math.floor(cooldownSecondsLeft / 60)}min`
-                    : `${cooldownSecondsLeft}s`}
-              </strong>
-            </p>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleRelax}
-                disabled={relaxLoading}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-medium"
-              >
-                <Sparkles className="w-4 h-4" />
-                {relaxLoading ? 'Relaxando...' : 'Relaxar em casa'}
-              </button>
-              {relaxError && (
-                <p className="text-amber-400 text-sm mt-2 text-center" role="alert">{relaxError}</p>
-              )}
-            </>
-          )}
-        </section>
+        {!isViewer && (
+          <section className="mt-4 w-full max-w-[min(100%,400px)] rounded-xl bg-slate-800/80 p-4">
+            <h2 className="text-sm font-medium text-slate-300 mb-2">Relaxar (cooldown 3h)</h2>
+            {inCooldown ? (
+              <p className="text-slate-400 text-sm text-center">
+                Próximo uso em <strong className="text-white">
+                  {cooldownSecondsLeft >= 3600
+                    ? `${Math.floor(cooldownSecondsLeft / 3600)}h ${Math.floor((cooldownSecondsLeft % 3600) / 60)}min`
+                    : cooldownSecondsLeft >= 60
+                      ? `${Math.floor(cooldownSecondsLeft / 60)}min`
+                      : `${cooldownSecondsLeft}s`}
+                </strong>
+              </p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleRelax}
+                  disabled={relaxLoading}
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-medium"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {relaxLoading ? 'Relaxando...' : 'Relaxar em casa'}
+                </button>
+                {relaxError && (
+                  <p className="text-amber-400 text-sm mt-2 text-center" role="alert">{relaxError}</p>
+                )}
+              </>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );

@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { getOrCreateGameProfile } from '@/lib/db/game';
+import { getGameProfile, getOrCreateGameProfile } from '@/lib/db/game';
 import {
   totalXpForLevel,
   xpRequiredForNextLevel,
@@ -8,12 +8,19 @@ import {
   MAX_LEVEL,
 } from '@/lib/game/level-progression';
 
-export async function GET() {
-  const userId = await getSessionUserId();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request: NextRequest) {
+  const sessionUserId = await getSessionUserId();
+  if (!sessionUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const url = new URL(request.url);
+  const targetUserId = url.searchParams.get('userId') ?? sessionUserId;
 
   try {
-    const profile = await getOrCreateGameProfile(userId);
+    const profile =
+      targetUserId === sessionUserId
+        ? await getOrCreateGameProfile(sessionUserId)
+        : await getGameProfile(targetUserId);
+    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     const level = Math.min(profile.level, MAX_LEVEL);
     const xpForNext = xpRequiredForNextLevel(level);
     const xpInCurrentLevel =
@@ -29,7 +36,7 @@ export async function GET() {
       xp_for_next_level: xpForNext,
       xp_in_current_level: xpInCurrentLevel,
       xp_progress: xpProgress,
-      is_sick: profile.health <= 50,
+      is_sick: profile.health <= 50 || profile.stress > 75,
       is_burnout: profile.stress >= 100,
     });
   } catch (e) {

@@ -251,6 +251,24 @@ export async function getPendingCountByFolder(userId: string): Promise<Map<strin
   return map;
 }
 
+/** Pendentes agrupadas por pasta, com título de cada tarefa (para notificações). */
+export async function getPendingTasksGroupedByFolder(userId: string): Promise<Map<string, Task[]>> {
+  const sql = getNeon();
+  const rows = await sql`
+    SELECT * FROM tasks
+    WHERE user_id = ${userId} AND completed = false
+    ORDER BY folder_id, title
+  `;
+  const tasks = (rows as Record<string, unknown>[]).map(rowToTask);
+  const map = new Map<string, Task[]>();
+  for (const t of tasks) {
+    const list = map.get(t.folder_id) ?? [];
+    list.push(t);
+    map.set(t.folder_id, list);
+  }
+  return map;
+}
+
 /** Conta tarefas concluídas em pastas de um dado tipo (trabalho, estudos, lazer, tarefas_pessoais). */
 export async function getCompletedTasksCountByFolderType(
   userId: string,

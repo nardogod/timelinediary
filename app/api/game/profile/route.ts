@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { getOrCreateGameProfile, updateGameProfile } from '@/lib/db/game';
+import { getGameProfile, getOrCreateGameProfile, updateGameProfile } from '@/lib/db/game';
 import { getOwnedItems } from '@/lib/db/shop';
 
-export async function GET() {
-  const userId = await getSessionUserId();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request: NextRequest) {
+  const sessionUserId = await getSessionUserId();
+  if (!sessionUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const url = new URL(request.url);
+  const targetUserId = url.searchParams.get('userId') ?? sessionUserId;
 
   try {
-    const profile = await getOrCreateGameProfile(userId);
+    const profile =
+      targetUserId === sessionUserId
+        ? await getOrCreateGameProfile(sessionUserId)
+        : await getGameProfile(targetUserId);
     return NextResponse.json(profile);
   } catch (e) {
     console.error('[game/profile GET]', e);

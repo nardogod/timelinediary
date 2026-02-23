@@ -3,12 +3,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Briefcase, Home, Coins, Heart, Zap, Wrench, ShoppingBag, Target, Check, Building2, ChevronDown, ChevronRight } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Briefcase, Home, Coins, Heart, Zap, Wrench, ShoppingBag, Target, Check, Building2, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
 import GameProfileCard from '@/components/game/GameProfileCard';
 import { LevelUpEffect, type LevelUpPayload } from '@/components/game/LevelUpEffect';
 import type { GameProfile } from '@/lib/db/game-types';
 import type { OwnedItems } from '@/lib/db/shop';
+import { STORY_ARCS, getArcByAvatarIndex, getArcStory } from '@/lib/game/storyline-arcs';
+import { getAvatarByPath } from '@/lib/game/profile-avatars';
 
 type GameStatus = {
   health: number;
@@ -26,6 +28,12 @@ type GameStatus = {
 export default function GamePage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const viewerUserId = searchParams.get('userId');
+  const fromUsername = searchParams.get('from');
+  const isViewer = !!viewerUserId && viewerUserId !== (user?.id ?? null);
+  const gameQuery = [viewerUserId && `userId=${encodeURIComponent(viewerUserId)}`, fromUsername && `from=${encodeURIComponent(fromUsername)}`].filter(Boolean).join('&');
+  const gamePath = (path: string) => (gameQuery ? `${path}?${gameQuery}` : path);
   const [status, setStatus] = useState<GameStatus | null>(null);
   const [profile, setProfile] = useState<GameProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,13 +78,19 @@ export default function GamePage() {
   const [roomsOpen, setRoomsOpen] = useState(false);
   const [roomPurchasing, setRoomPurchasing] = useState<string | null>(null);
   const [levelUpTestPayload, setLevelUpTestPayload] = useState<LevelUpPayload | null>(null);
+  /** Mensagem de ganhos desde a última abertura (só para o dono do mundo). */
+  const [lastOpenGains, setLastOpenGains] = useState<string | null>(null);
+  /** História/Lore: minimizada e se mostra todas as trilhas. */
+  const [storyMinimized, setStoryMinimized] = useState(false);
+  const [storyShowAll, setStoryShowAll] = useState(false);
 
   const loadStatus = useCallback(async () => {
     if (!user) return;
     try {
+      const qs = viewerUserId ? `?userId=${encodeURIComponent(viewerUserId)}` : '';
       const [statusRes, profileRes] = await Promise.all([
-        fetch('/api/game/status', { cache: 'no-store' }),
-        fetch('/api/game/profile'),
+        fetch(`/api/game/status${qs}`, { cache: 'no-store' }),
+        fetch(`/api/game/profile${qs}`),
       ]);
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -91,10 +105,10 @@ export default function GamePage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, viewerUserId]);
 
   const loadShopCatalog = useCallback(async () => {
-    if (!user) return;
+    if (!user || isViewer) return;
     try {
       const res = await fetch('/api/game/shop/catalog');
       if (res.ok) {
@@ -104,10 +118,10 @@ export default function GamePage() {
     } catch (e) {
       console.error('[GamePage] Erro ao carregar loja:', e);
     }
-  }, [user]);
+  }, [user, isViewer]);
 
   const loadMissions = useCallback(async () => {
-    if (!user) return;
+    if (!user || isViewer) return;
     try {
       const res = await fetch('/api/game/missions');
       if (res.ok) {
@@ -118,7 +132,7 @@ export default function GamePage() {
     } catch (e) {
       console.error('[GamePage] Erro ao carregar missões:', e);
     }
-  }, [user, loadShopCatalog]);
+  }, [user, isViewer, loadShopCatalog]);
 
   const loadRooms = useCallback(async () => {
     if (!user) return;
@@ -228,6 +242,68 @@ export default function GamePage() {
     loadRooms();
   }, [user, authLoading, router, loadStatus, loadShopCatalog, loadMissions, loadRooms]);
 
+  // Revalidar status ao voltar para a aba/página (ex.: depois de Casa ou Trabalho) para manter Doente/Burnout em dia
+  useEffect(() => {
+    if (!user || isViewer) return;
+    const onFocus = () => loadStatus();
+    window.addEventListener('focus', onFocus);
+    const onVisibility = () => { if (document.visibilityState === 'visible') loadStatus(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user, isViewer, loadStatus]);
+
+  // Ganhos desde a última abertura (só no próprio mundo): lê snapshot ao carregar e mostra diferença
+  useEffect(() => {
+    if (!user || isViewer || !status) return;
+    const key = `timeline_game_snapshot_${user.id}`;
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+      const prev = raw ? (JSON.parse(raw) as { coins?: number; experience?: number; health?: number; stress?: number; level?: number; at?: string }) : null;
+      if (prev && prev.at && prev.coins !== undefined) {
+        const coinsDiff = status.coins - prev.coins;
+        const xpDiff = (status.experience ?? 0) - (prev.experience ?? 0);
+        const healthDiff = status.health - (prev.health ?? 100);
+        const stressDiff = status.stress - (prev.stress ?? 0);
+        const levelDiff = (status.level ?? 1) - (prev.level ?? 1);
+        const parts: string[] = [];
+        if (coinsDiff !== 0) parts.push(coinsDiff > 0 ? `+${coinsDiff} moedas` : `${coinsDiff} moedas`);
+        if (xpDiff !== 0) parts.push(xpDiff > 0 ? `+${xpDiff} XP` : `${xpDiff} XP`);
+        if (levelDiff > 0) parts.push(`+${levelDiff} nível`);
+        if (healthDiff !== 0) parts.push(healthDiff > 0 ? `+${healthDiff}% saúde` : `${healthDiff}% saúde`);
+        if (stressDiff !== 0) parts.push(stressDiff < 0 ? `${stressDiff}% stress` : `+${stressDiff}% stress`);
+        if (parts.length > 0) {
+          setLastOpenGains(`Desde a última vez: ${parts.join(', ')}`);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [user, isViewer, status]);
+
+  // Ao sair da página, salva snapshot para “desde a última abertura” na próxima vez
+  useEffect(() => {
+    if (!user || isViewer || !status) return;
+    const key = `timeline_game_snapshot_${user.id}`;
+    const snapshot = {
+      coins: status.coins,
+      experience: status.experience ?? 0,
+      health: status.health,
+      stress: status.stress,
+      level: status.level ?? 1,
+      at: new Date().toISOString(),
+    };
+    return () => {
+      try {
+        if (typeof window !== 'undefined') localStorage.setItem(key, JSON.stringify(snapshot));
+      } catch {
+        // ignore
+      }
+    };
+  }, [user, isViewer, status]);
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -240,23 +316,59 @@ export default function GamePage() {
     <div className="min-h-screen flex flex-col bg-slate-900 text-white safe-area-inset">
       <header className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-700">
         <Link
-          href={user ? `/u/${user.username}` : '/'}
+          href={fromUsername ? `/u/${fromUsername}` : user ? `/u/${user.username}` : '/'}
           className="p-2 -m-2 rounded-lg hover:bg-slate-800"
           aria-label="Voltar"
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="flex-1 text-lg font-semibold">Meu Mundo</h1>
+        <h1 className="flex-1 text-lg font-semibold">{isViewer && fromUsername ? `Mundo de ${fromUsername}` : 'Meu Mundo'}</h1>
       </header>
 
       <main className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Alertas críticos no topo para sempre ficarem visíveis (Doente, Burnout, Prestes a morrer) */}
+        {status && (status.is_sick || status.is_burnout || (status.health > 0 && status.health <= 25)) && (
+          <div className="space-y-2">
+            {status.is_burnout && (
+              <div className="rounded-xl bg-rose-900/70 border-2 border-rose-500 px-4 py-3 text-rose-100 text-sm shadow-lg">
+                <p className="font-semibold">⚠️ Burnout</p>
+                <p className="text-rose-200/95 text-xs mt-0.5">Trabalho e estudos não dão XP nem moedas até o stress baixar. Faça atividades de lazer ou relaxe em casa.</p>
+              </div>
+            )}
+            {status.is_sick && (
+              <div className="rounded-xl bg-amber-900/70 border-2 border-amber-500 px-4 py-3 text-amber-100 text-sm shadow-lg">
+                <p className="font-semibold">🤒 Doente</p>
+                <p className="text-amber-200/95 text-xs mt-0.5">Saúde baixa ou stress acima de 75%: trabalho rende menos e gera mais stress. Relaxe em casa para recuperar.</p>
+              </div>
+            )}
+            {status.health > 0 && status.health <= 25 && (
+              <div className="rounded-xl bg-amber-800/70 border-2 border-amber-600 px-4 py-3 text-amber-100 text-sm shadow-lg">
+                <p className="font-semibold">💀 Prestes a morrer</p>
+                <p className="text-amber-200/95 text-xs mt-0.5">Se a saúde chegar a 0%, você volta ao nível inicial. Evite atividades que custam saúde ou relaxe em casa.</p>
+              </div>
+            )}
+          </div>
+        )}
+        {lastOpenGains && (
+          <div className="rounded-xl bg-emerald-900/60 border border-emerald-600/50 px-4 py-3 flex items-center justify-between gap-3 text-sm text-emerald-100">
+            <span className="flex-1">✨ {lastOpenGains}</span>
+            <button
+              type="button"
+              onClick={() => setLastOpenGains(null)}
+              className="p-1 rounded hover:bg-emerald-700/50 text-emerald-200"
+              aria-label="Fechar"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <GameProfileCard
-          username={user?.username ?? ''}
+          username={fromUsername ?? user?.username ?? ''}
           profile={profile}
-          onCoverChange={handleCoverChange}
-          onCoverPositionChange={handleCoverPositionChange}
-          onAvatarChange={handleAvatarChange}
-          onPetChange={handlePetChange}
+          onCoverChange={isViewer ? undefined : handleCoverChange}
+          onCoverPositionChange={isViewer ? undefined : handleCoverPositionChange}
+          onAvatarChange={isViewer ? undefined : handleAvatarChange}
+          onPetChange={isViewer ? undefined : handlePetChange}
           ownedCoverIds={shopCatalog?.owned.cover}
           ownedAvatarIds={shopCatalog?.owned.avatar}
           ownedPetIds={shopCatalog?.owned.pet}
@@ -267,7 +379,7 @@ export default function GamePage() {
             {status.is_sick && (
               <div className="flex items-center gap-2 rounded-lg bg-amber-900/50 border border-amber-600/50 px-3 py-2 text-amber-200 text-sm">
                 <span className="font-medium">Doente</span>
-                <span className="text-amber-300/90">— Saúde baixa: trabalho rende menos e gera mais stress.</span>
+                <span className="text-amber-300/90">— Saúde baixa ou stress &gt;75%: trabalho rende menos e gera mais stress.</span>
               </div>
             )}
             {status.is_burnout && (
@@ -289,7 +401,7 @@ export default function GamePage() {
               </div>
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-400" />
-                <span>Stress: {status.stress}%</span>
+                <span>Stress: {status.stress}%{status.stress >= 100 ? ' (Burnout)' : ''}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Coins className="w-4 h-4 text-amber-300" />
@@ -319,10 +431,13 @@ export default function GamePage() {
                 </div>
                 <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
                   <div
-                    className="h-full bg-amber-500 rounded-full transition-all"
+                    className={`h-full rounded-full transition-all ${status.stress >= 100 ? 'bg-rose-500' : 'bg-amber-500'}`}
                     style={{ width: `${Math.min(100, status.stress)}%` }}
                   />
                 </div>
+                {status.stress > 100 && (
+                  <p className="text-xs text-rose-400 mt-0.5">Stress acima de 100% (Burnout) — relaxe ou faça lazer para baixar.</p>
+                )}
               </div>
               <div>
                 <div className="flex justify-between text-xs text-slate-400 mb-0.5">
@@ -344,8 +459,57 @@ export default function GamePage() {
           </section>
         )}
 
+        {!isViewer && (
+          <section className="rounded-xl bg-slate-800/80 border border-slate-700 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setStoryMinimized((m) => !m)}
+              className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-slate-700/50 transition-colors"
+            >
+              <BookOpen className="w-4 h-4 text-slate-400" />
+              <span className="font-medium text-slate-200">História</span>
+              {storyMinimized ? <ChevronRight className="w-4 h-4 ml-auto text-slate-500" /> : <ChevronDown className="w-4 h-4 ml-auto text-slate-500" />}
+            </button>
+            {!storyMinimized && (
+              <div className="px-4 pb-4 pt-0 space-y-4 text-sm text-slate-300 border-t border-slate-700">
+                <p className="italic text-slate-400">Prelúdio — Luna, a Última Iniciada, te guia nos primeiros passos. Complete Primeira Luz, Caminho Iluminado e Porta Aberta para provar que está pronto e desbloquear a Trilha do Guerreiro.</p>
+                {profile?.avatar_image_url && (() => {
+                  const avatar = getAvatarByPath(profile.avatar_image_url);
+                  const idx = parseInt(avatar?.id?.replace('personagem', '') ?? '9', 10);
+                  const arc = getArcByAvatarIndex(idx);
+                  const story = getArcStory(idx);
+                  if (!arc || !story) return null;
+                  return (
+                    <div>
+                      <p className="font-medium text-slate-200">Sua trilha atual ({arc.name})</p>
+                      <p className="text-slate-400">{story}</p>
+                    </div>
+                  );
+                })()}
+                <button
+                  type="button"
+                  onClick={() => setStoryShowAll((a) => !a)}
+                  className="text-xs text-amber-400 hover:text-amber-300"
+                >
+                  {storyShowAll ? 'Ocultar trilhas' : 'Ver todas as trilhas'}
+                </button>
+                {storyShowAll && (
+                  <div className="space-y-2 pt-2 border-t border-slate-700">
+                    {STORY_ARCS.map((arc) => (
+                      <div key={arc.id}>
+                        <p className="font-medium text-slate-200">{arc.name}</p>
+                        <p className="text-slate-400 text-xs">{arc.story}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         <Link
-          href="/game/trabalho"
+          href={gamePath('/game/trabalho')}
           className="block rounded-xl bg-slate-800/80 p-4 border border-slate-700 hover:border-slate-600 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -360,7 +524,7 @@ export default function GamePage() {
         </Link>
 
         <Link
-          href="/game/casa"
+          href={gamePath('/game/casa')}
           className="block rounded-xl bg-slate-800/80 p-4 border border-slate-700 hover:border-slate-600 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -374,6 +538,7 @@ export default function GamePage() {
           </div>
         </Link>
 
+        {!isViewer && (
         <section className="rounded-xl bg-slate-800/80 p-4 border border-slate-700">
           <button
             type="button"
@@ -579,7 +744,9 @@ export default function GamePage() {
             </div>
           )}
         </section>
+        )}
 
+        {!isViewer && (
         <section className="rounded-xl bg-slate-800/80 p-4 border border-slate-700">
           <button
             type="button"
@@ -662,7 +829,9 @@ export default function GamePage() {
             );
           })()}
         </section>
+        )}
 
+        {!isViewer && (
         <section className="rounded-xl bg-slate-800/80 p-4 border border-slate-700">
           <button
             type="button"
@@ -882,6 +1051,7 @@ export default function GamePage() {
             </div>
           )}
         </section>
+        )}
 
         {process.env.NODE_ENV === 'development' && (
           <section className="rounded-xl bg-amber-900/30 p-4 border border-amber-700/50 space-y-3">

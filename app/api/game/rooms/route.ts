@@ -7,14 +7,17 @@ import {
 } from '@/lib/db/rooms';
 import { getGameProfile } from '@/lib/db/game';
 
-export async function GET() {
-  const userId = await getSessionUserId();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request: NextRequest) {
+  const sessionUserId = await getSessionUserId();
+  if (!sessionUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const url = new URL(request.url);
+  const targetUserId = url.searchParams.get('userId') ?? sessionUserId;
 
   try {
     const [owned, profile] = await Promise.all([
-      getOwnedRooms(userId),
-      getGameProfile(userId),
+      getOwnedRooms(targetUserId),
+      getGameProfile(targetUserId),
     ]);
     return NextResponse.json({
       catalog: { house: HOUSES, work: WORK_ROOMS },
