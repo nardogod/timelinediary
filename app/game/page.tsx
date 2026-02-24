@@ -10,6 +10,7 @@ import { LevelUpEffect, type LevelUpPayload } from '@/components/game/LevelUpEff
 import type { GameProfile } from '@/lib/db/game-types';
 import type { OwnedItems } from '@/lib/db/shop';
 import { STORY_ARCS, getArcByAvatarIndex, getArcStory } from '@/lib/game/storyline-arcs';
+import { AVATAR_STORYLINE_ORDER } from '@/lib/game/avatar-missions-data';
 import { getAvatarByPath } from '@/lib/game/profile-avatars';
 
 type GameStatus = {
@@ -889,25 +890,33 @@ function GamePageContent() {
 
             let currentAvatarId = missionFilterAvatarId ?? baseAvatarId;
 
-            // Auto-seleciona, dentro do mesmo arco, o primeiro avatar que ainda tenha missão em aberto
             if (!missionFilterAvatarId) {
+              const incompleteByAvatar = new Set<number>();
+              for (const m of missions) {
+                if (!m.id.startsWith('avatar_')) continue;
+                const match = /^avatar_(\d+)_/.exec(m.id);
+                if (!match) continue;
+                const avatarIndex = parseInt(match[1], 10);
+                if (!m.completed) {
+                  incompleteByAvatar.add(avatarIndex);
+                }
+              }
+
               const idxStr = currentAvatarId.replace(/^personagem/, '') || '9';
               const currentIdx = parseInt(idxStr, 10);
-              const arc = getArcByAvatarIndex(currentIdx);
-              if (arc) {
-                const incompleteByAvatar = new Set<number>();
-                for (const m of missions) {
-                  if (!m.id.startsWith('avatar_')) continue;
-                  const match = /^avatar_(\d+)_/.exec(m.id);
-                  if (!match) continue;
-                  const avatarIndex = parseInt(match[1], 10);
-                  if (!m.completed) {
-                    incompleteByAvatar.add(avatarIndex);
+              const currentPos = AVATAR_STORYLINE_ORDER.indexOf(currentIdx);
+
+              // Se o avatar atual ainda tem missão em aberto, fica nele
+              if (!incompleteByAvatar.has(currentIdx)) {
+                // Senão, avança na ordem da história até achar o próximo com missão pendente
+                if (currentPos >= 0) {
+                  for (let i = currentPos + 1; i < AVATAR_STORYLINE_ORDER.length; i++) {
+                    const candidate = AVATAR_STORYLINE_ORDER[i];
+                    if (incompleteByAvatar.has(candidate)) {
+                      currentAvatarId = `personagem${candidate}`;
+                      break;
+                    }
                   }
-                }
-                const candidate = arc.avatarIndices.find((i) => incompleteByAvatar.has(i));
-                if (candidate) {
-                  currentAvatarId = `personagem${candidate}`;
                 }
               }
             }
