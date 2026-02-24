@@ -480,7 +480,7 @@ function GamePageContent() {
                   const idx = parseInt(avatar?.id?.replace('personagem', '') ?? '9', 10);
                   const arc = getArcByAvatarIndex(idx);
                   const story = getArcStory(idx);
-                  if (!arc || !story) {
+                  if (!arc || !story || !avatar) {
                     return (
                       <p className="italic text-slate-400">
                         Prelúdio — Luna, a Última Iniciada, te guia nos primeiros passos. Complete Primeira Luz, Caminho Iluminado e Porta Aberta para provar que está pronto e desbloquear a Trilha do Guerreiro.
@@ -488,10 +488,15 @@ function GamePageContent() {
                     );
                   }
                   return (
-                    <div>
+                    <div className="space-y-1.5">
                       <p className="italic text-slate-400">
                         {arc.name} — {story}
                       </p>
+                      {avatar.tagline && (
+                        <p className="text-xs text-slate-400">
+                          <span className="font-semibold text-slate-200">{avatar.name}:</span> {avatar.tagline}
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -880,7 +885,33 @@ function GamePageContent() {
           </button>
           {missionsOpen && missions && missions.length > 0 && (() => {
             const fromPath = profile?.avatar_image_url?.match(/personagem(\d+)\.png$/);
-            const currentAvatarId = missionFilterAvatarId ?? (fromPath ? `personagem${fromPath[1]}` : null) ?? 'personagem9';
+            const baseAvatarId = fromPath ? `personagem${fromPath[1]}` : 'personagem9';
+
+            let currentAvatarId = missionFilterAvatarId ?? baseAvatarId;
+
+            // Auto-seleciona, dentro do mesmo arco, o primeiro avatar que ainda tenha missão em aberto
+            if (!missionFilterAvatarId) {
+              const idxStr = currentAvatarId.replace(/^personagem/, '') || '9';
+              const currentIdx = parseInt(idxStr, 10);
+              const arc = getArcByAvatarIndex(currentIdx);
+              if (arc) {
+                const incompleteByAvatar = new Set<number>();
+                for (const m of missions) {
+                  if (!m.id.startsWith('avatar_')) continue;
+                  const match = /^avatar_(\d+)_/.exec(m.id);
+                  if (!match) continue;
+                  const avatarIndex = parseInt(match[1], 10);
+                  if (!m.completed) {
+                    incompleteByAvatar.add(avatarIndex);
+                  }
+                }
+                const candidate = arc.avatarIndices.find((i) => incompleteByAvatar.has(i));
+                if (candidate) {
+                  currentAvatarId = `personagem${candidate}`;
+                }
+              }
+            }
+
             const n = currentAvatarId.replace(/^personagem/, '') || '9';
             const avatarMissionIds = [`avatar_${n}_1`, `avatar_${n}_2`, `avatar_${n}_3`];
             const avatarMissions = missions.filter((m) => avatarMissionIds.includes(m.id));
