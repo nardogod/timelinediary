@@ -141,10 +141,37 @@ export async function POST(request: NextRequest) {
 
       const createdEvents = await createMultipleEvents(eventsData);
 
+      // Aplicar recompensas para eventos recorrentes que são hoje ou já passaram
+      const today = todayLocal();
+      const gameResults: Array<{
+        eventId: string;
+        levelUp?: boolean;
+        newLevel?: number;
+        previousLevel?: number;
+        xpEarned?: number;
+        died?: boolean;
+      }> = [];
+
+      for (const ev of createdEvents) {
+        if (!ev.folder_id) continue;
+        if (ev.date > today) continue;
+        const gamePayload = await applyRewardIfPastOrToday(userId, {
+          id: ev.id,
+          title: ev.title,
+          date: ev.date,
+          type: ev.type,
+          folder_id: ev.folder_id,
+        });
+        if (gamePayload) {
+          gameResults.push({ eventId: ev.id, ...gamePayload });
+        }
+      }
+
       return NextResponse.json({
         events: createdEvents,
         count: createdEvents.length,
-        message: `${createdEvents.length} eventos criados com sucesso`
+        message: `${createdEvents.length} eventos criados com sucesso`,
+        game: gameResults.length > 0 ? gameResults : undefined,
       });
     }
 

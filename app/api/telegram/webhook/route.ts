@@ -10,7 +10,7 @@ import { getBotState, setBotState, clearBotState, type BotStep, type BotStatePay
 import { getEventsByUserId, createEvent, createMultipleEvents } from '@/lib/db/events';
 import { getFoldersByUserId } from '@/lib/db/folders';
 import { parseDate } from '@/lib/telegram-parser';
-import { validateEvent, sanitizeTitle, sanitizeLink, validateLink } from '@/lib/validators';
+import { validateEvent, sanitizeTitle, sanitizeLink, validateLink, validateTitle, validateEventType } from '@/lib/validators';
 import { generateRecurringDates, dayNameToNumber, DayOfWeek, dayNumberToName } from '@/lib/recurringEvents';
 
 function validateWebhook(request: NextRequest): boolean {
@@ -471,11 +471,23 @@ export async function POST(request: NextRequest) {
           await bot.api.sendMessage(chatId, 'Toque em 1, 2 ou 3:', { reply_markup: KEYBOARD_NIVEL });
           return NextResponse.json({ ok: true });
         }
-        const validation = validateEvent({
-          title: state.payload.title!,
-          date: state.payload.date!,
-          type: level,
-        });
+        // Para eventos recorrentes não temos uma data única; validamos apenas título e tipo
+        let validation;
+        if (state.payload.is_recurring && !state.payload.date) {
+          const titleValidation = validateTitle(state.payload.title!);
+          const typeValidation = validateEventType(level);
+          const errors = [
+            ...(titleValidation.isValid ? [] : titleValidation.errors),
+            ...(typeValidation.isValid ? [] : typeValidation.errors),
+          ];
+          validation = { isValid: errors.length === 0, errors };
+        } else {
+          validation = validateEvent({
+            title: state.payload.title!,
+            date: state.payload.date!,
+            type: level,
+          });
+        }
         if (!validation.isValid) {
           await bot.api.sendMessage(chatId, validation.errors.join('\n'));
           return NextResponse.json({ ok: true });
