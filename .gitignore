@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local/editor history and large asset dumps (não necessários no repo público)
+.history/
+zipgame/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
