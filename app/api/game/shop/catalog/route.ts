@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserId } from '@/lib/session';
-import { getCatalog, getOwnedItems } from '@/lib/db/shop';
+import { getCatalog, getOwnedItems, getConsumablesUsedToday } from '@/lib/db/shop';
 import { getAvatarUnlockSummary } from '@/lib/game/missions';
 import { getCompletedMissionIds } from '@/lib/db/missions';
 
@@ -9,10 +9,11 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const [catalog, owned, completedMissionIds] = await Promise.all([
+    const [catalog, owned, completedMissionIds, consumableUsedToday] = await Promise.all([
       getCatalog(),
       getOwnedItems(userId),
       getCompletedMissionIds(userId),
+      getConsumablesUsedToday(userId),
     ]);
     const avatarCatalog = catalog.avatar.map((item) => {
       const summary = getAvatarUnlockSummary(item.id);
@@ -32,6 +33,7 @@ export async function GET() {
     return NextResponse.json({
       catalog: { ...catalog, avatar: avatarCatalog, guardian_item: guardianCatalog },
       owned,
+      consumable_used_today: consumableUsedToday,
     });
   } catch (e) {
     console.error('[game/shop/catalog GET]', e);

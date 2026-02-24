@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -25,7 +25,7 @@ type GameStatus = {
   is_burnout?: boolean;
 };
 
-export default function GamePage() {
+function GamePageContent() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -43,12 +43,15 @@ export default function GamePage() {
       avatar: { id: string; name: string; price: number; imagePath: string; unlockOnlyByMission?: boolean; unlockMissionName?: string; unlockMissionRequirement?: string; previousAvatarName?: string | null }[];
       pet: { id: string; name: string; price: number; imagePath: string }[];
       guardian_item: { id: string; name: string; price: number; imagePath: string; unlockMissionId?: string; unlocked?: boolean; bonus?: { stress_reduce_percent?: number; xp_percent?: number; coins_percent?: number } }[];
+      consumable?: { id: string; name: string; price: number; imagePath: string; health_restore_percent?: number; stress_reduce_percent?: number; maxStock?: number }[];
     };
     owned: OwnedItems;
+    /** consumable_id -> número de usos hoje (máx. 2) */
+    consumable_used_today?: Record<string, number>;
   } | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
   /** Quais seções da loja estão expandidas (menu minimizável). */
-  const [shopSectionsOpen, setShopSectionsOpen] = useState<Record<string, boolean>>({ cover: true, avatar: false, pet: false, guardian_item: false });
+  const [shopSectionsOpen, setShopSectionsOpen] = useState<Record<string, boolean>>({ cover: true, avatar: false, pet: false, guardian_item: false, consumable: false });
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   const toggleShopSection = (key: string) => {
@@ -417,12 +420,12 @@ export default function GamePage() {
                   <span>Saúde</span>
                   <span>{status.health}%</span>
                 </div>
-                <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
-                  <div
-                    className="h-full bg-rose-500 rounded-full transition-all"
-                    style={{ width: `${status.health}%` }}
-                  />
-                </div>
+              <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+                <div
+                  className="h-full bg-rose-500 rounded-full transition-all"
+                  style={{ width: `${status.health}%` }}
+                />
+              </div>
               </div>
               <div>
                 <div className="flex justify-between text-xs text-slate-400 mb-0.5">
@@ -448,11 +451,11 @@ export default function GamePage() {
                       : 'Nível máximo'}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
-                  <div
+              <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+                <div
                     className="h-full bg-emerald-500 rounded-full transition-all"
                     style={{ width: `${((status.xp_progress ?? 0) * 100).toFixed(0)}%` }}
-                  />
+                />
                 </div>
               </div>
             </div>
@@ -738,6 +741,114 @@ export default function GamePage() {
                     })}
                   </div>
                   </>
+                  )}
+                </div>
+              )}
+              {shopCatalog.catalog.consumable && shopCatalog.catalog.consumable.length > 0 && (
+                <div className="rounded-lg border border-slate-600 bg-slate-900/50 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleShopSection('consumable')}
+                    className="w-full flex items-center gap-2 py-2 px-3 text-left hover:bg-slate-800/50 transition-colors"
+                  >
+                    {shopSectionsOpen.consumable ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                    <span className="text-xs font-medium text-slate-300 uppercase">Comida e Bebida Favorita</span>
+                  </button>
+                  {shopSectionsOpen.consumable && (
+                    <>
+                      <p className="text-xs text-slate-400 px-3 pb-1">Máx. 2 em estoque. Até 2 usos por dia por item.</p>
+                      <div className="px-3 pb-3 flex flex-wrap gap-2">
+                        {shopCatalog.catalog.consumable.map((item) => {
+                          const qty = shopCatalog.owned.consumable?.[item.id] ?? 0;
+                          const usedTodayCount = shopCatalog.consumable_used_today?.[item.id] ?? 0;
+                          const key = `consumable-${item.id}`;
+                          const effectText = [
+                            item.health_restore_percent && `+${item.health_restore_percent}% vida/dia`,
+                            item.stress_reduce_percent && `-${item.stress_reduce_percent}% stress/dia`,
+                          ].filter(Boolean).join(', ');
+                          const canBuy = qty < (item.maxStock ?? 2) && (status?.coins ?? 0) >= item.price;
+                          const canUse = qty >= 1 && usedTodayCount < 2;
+                          return (
+                            <div
+                              key={key}
+                              className="relative rounded-lg border border-slate-600 bg-slate-900/80 p-2 flex flex-col items-center min-w-[100px]"
+                            >
+                              {item.imagePath ? (
+                                <div className="w-12 h-12 rounded-lg bg-slate-800 bg-cover bg-center flex items-center justify-center" style={{ backgroundImage: `url(${item.imagePath})` }}>
+                                  {item.imagePath.endsWith('placeholder-item.svg') && <Heart className="w-6 h-6 text-slate-500" />}
+                                </div>
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center"><Heart className="w-6 h-6 text-slate-500" /></div>
+                              )}
+                              <span className="text-xs text-slate-300 mt-1 truncate w-full text-center">{item.name}</span>
+                              {effectText && <span className="text-[10px] text-emerald-400/90 mt-0.5 text-center">{effectText}</span>}
+                              <span className="text-[10px] text-slate-500 mt-0.5">Estoque: {qty}/{item.maxStock ?? 2}</span>
+                              <div className="flex flex-col gap-1 mt-1 w-full">
+                                {canBuy && (
+                                  <button
+                                    type="button"
+                                    disabled={purchasing === key}
+                                    onClick={async () => {
+                                      setPurchasing(key);
+                                      try {
+                                        const res = await fetch('/api/game/shop/purchase', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ item_type: 'consumable', item_id: item.id }),
+                                        });
+                                        const data = await res.json().catch(() => ({}));
+                                        if (res.ok && data?.ok) {
+                                          await loadShopCatalog();
+                                          await loadStatus();
+                                        } else if (data?.error) {
+                                          alert(data.error);
+                                        }
+                                      } finally {
+                                        setPurchasing(null);
+                                      }
+                                    }}
+                                    className="text-xs py-1 px-2 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50"
+                                  >
+                                    {item.price} moedas
+                                  </button>
+                                )}
+                                {canUse && (
+                                  <button
+                                    type="button"
+                                    disabled={purchasing === key}
+                                    onClick={async () => {
+                                      setPurchasing(key);
+                                      try {
+                                        const res = await fetch('/api/game/consumable/use', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ consumable_id: item.id }),
+                                        });
+                                        const data = await res.json().catch(() => ({}));
+                                        if (res.ok && data?.ok) {
+                                          await loadShopCatalog();
+                                          await loadStatus();
+                                        } else if (data?.error) {
+                                          alert(data.error);
+                                        }
+                                      } finally {
+                                        setPurchasing(null);
+                                      }
+                                    }}
+                                    className="text-xs py-1 px-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
+                                  >
+                                    Usar
+                                  </button>
+                                )}
+                                {usedTodayCount >= 1 && qty >= 0 && (
+                                  <span className="text-[10px] text-amber-400">{usedTodayCount}/2 usados hoje</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -1075,7 +1186,7 @@ export default function GamePage() {
               >
                 <Wrench className="w-4 h-4" />
                 Editor da sala e sprite sheet
-              </Link>
+          </Link>
             </div>
           </section>
         )}
@@ -1086,5 +1197,13 @@ export default function GamePage() {
         />
       </main>
     </div>
+  );
+}
+
+export default function GamePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-300">Carregando...</div>}>
+      <GamePageContent />
+    </Suspense>
   );
 }

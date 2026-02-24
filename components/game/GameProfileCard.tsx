@@ -8,7 +8,7 @@ import {
   COVER_RECOMMENDED_LABEL,
 } from '@/lib/game/profile-asset-resolutions';
 import { PROFILE_AVATARS, DEFAULT_AVATAR_PATH } from '@/lib/game/profile-avatars';
-import { PETS, DEFAULT_PET_ID, getPetStressReductionPercent } from '@/lib/game/pet-assets';
+import { PETS, getPetStressReductionPercent } from '@/lib/game/pet-assets';
 import { getCoverBonus } from '@/lib/game/cover-bonuses';
 import type { GameProfile } from '@/lib/db/game-types';
 import Image from 'next/image';
@@ -92,7 +92,7 @@ export default function GameProfileCard({
   const [badgesExpanded, setBadgesExpanded] = useState(false);
   const selectedPetId =
     ownedPetIds === undefined
-      ? (profile?.pet_id ?? DEFAULT_PET_ID)
+      ? (profile?.pet_id ?? null)
       : profile?.pet_id && ownedPetIds.includes(profile.pet_id)
         ? profile.pet_id
         : null;

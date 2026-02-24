@@ -6,15 +6,16 @@ import { PROFILE_COVERS, type ProfileCoverOption } from '@/lib/game/profile-cove
 import { PROFILE_AVATARS, type ProfileAvatarOption } from '@/lib/game/profile-avatars';
 import { PETS, type PetOption } from '@/lib/game/pet-assets';
 import { GUARDIAN_ITEMS } from '@/lib/game/guardian-items';
+import { CONSUMABLES } from '@/lib/game/consumables';
 
-export type ShopItemType = 'cover' | 'avatar' | 'pet' | 'guardian_item';
+export type ShopItemType = 'cover' | 'avatar' | 'pet' | 'guardian_item' | 'consumable';
 
 export interface ShopItem {
   type: ShopItemType;
   id: string;
   name: string;
   price: number;
-  /** Para capa: imagePath; para avatar: path; para pet: spritePath; para guardian_item: ícone */
+  /** Para capa: imagePath; para avatar: path; para pet: spritePath; para guardian_item/consumable: ícone */
   imagePath: string;
   /** Se true, item só pode ser desbloqueado completando missão (não comprável com moedas). */
   unlockOnlyByMission?: boolean;
@@ -22,6 +23,12 @@ export interface ShopItem {
   unlockMissionId?: string;
   /** Só para guardian_item: bônus (anti-stress %, etc.). */
   bonus?: { stress_reduce_percent?: number; xp_percent?: number; coins_percent?: number };
+  /** Só para consumable: +X% vida por uso/dia. */
+  health_restore_percent?: number;
+  /** Só para consumable: -X% stress por uso/dia. */
+  stress_reduce_percent?: number;
+  /** Só para consumable: máximo em estoque por usuário. */
+  maxStock?: number;
 }
 
 /** Preços 5× e capas +15× (rebalanceamento). */
@@ -76,20 +83,33 @@ export const SHOP_CATALOG_GUARDIAN_ITEMS: ShopItem[] = GUARDIAN_ITEMS.map((g) =>
   bonus: g.bonus,
 }));
 
+export const SHOP_CATALOG_CONSUMABLES: ShopItem[] = CONSUMABLES.map((c) => ({
+  type: 'consumable' as const,
+  id: c.id,
+  name: c.name,
+  price: c.price,
+  imagePath: c.imagePath,
+  health_restore_percent: c.health_restore_percent,
+  stress_reduce_percent: c.stress_reduce_percent,
+  maxStock: c.maxStock,
+}));
+
 export function getShopItem(type: ShopItemType, itemId: string): ShopItem | undefined {
   const list =
     type === 'cover' ? SHOP_CATALOG_COVERS
     : type === 'avatar' ? SHOP_CATALOG_AVATARS
     : type === 'pet' ? SHOP_CATALOG_PETS
-    : SHOP_CATALOG_GUARDIAN_ITEMS;
+    : type === 'guardian_item' ? SHOP_CATALOG_GUARDIAN_ITEMS
+    : SHOP_CATALOG_CONSUMABLES;
   return list.find((i) => i.id === itemId);
 }
 
-export function getCatalog(): { cover: ShopItem[]; avatar: ShopItem[]; pet: ShopItem[]; guardian_item: ShopItem[] } {
+export function getCatalog(): { cover: ShopItem[]; avatar: ShopItem[]; pet: ShopItem[]; guardian_item: ShopItem[]; consumable: ShopItem[] } {
   return {
     cover: SHOP_CATALOG_COVERS,
     avatar: SHOP_CATALOG_AVATARS,
     pet: SHOP_CATALOG_PETS,
     guardian_item: SHOP_CATALOG_GUARDIAN_ITEMS,
+    consumable: SHOP_CATALOG_CONSUMABLES,
   };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,7 +37,7 @@ function getTodayBrazil(): string {
 
 const COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 horas
 
-export default function TrabalhoPage() {
+function TrabalhoPageContent() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -479,5 +479,13 @@ export default function TrabalhoPage() {
         </p>
       </main>
     </div>
+  );
+}
+
+export default function TrabalhoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-300">Carregando...</div>}>
+      <TrabalhoPageContent />
+    </Suspense>
   );
 }

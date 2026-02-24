@@ -8,6 +8,7 @@ import { getPetStressReductionPercent } from '@/lib/game/pet-assets';
 import { getCoverBonus } from '@/lib/game/cover-bonuses';
 import { getGuardianItemBonus } from '@/lib/game/guardian-items';
 import { levelFromExperience } from '@/lib/game/level-progression';
+import { getConsumableById } from '@/lib/game/consumables';
 
 function parseEarnedBadges(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -684,4 +685,64 @@ export async function getActivitiesByUserAndDate(
     ORDER BY scheduled_time NULLS LAST, created_at
   `;
   return (rows as Record<string, unknown>[]).map(rowToGameActivity);
+}
+
+/** Usa um consumível (comida/bebida favorita). Máx. 2 usos por dia por item. Aplica +X% vida ou -X% stress. */
+export async function useConsumable(
+  userId: string,
+  consumableId: string
+): Promise<{ ok: boolean; error?: string; profile?: GameProfile }> {
+  const def = getConsumableById(consumableId);
+  if (!def) return { ok: false, error: 'Consumível não encontrado' };
+
+  const sql = getNeon();
+  const ownedRows = (await sql`
+    SELECT quantity FROM game_consumable_owned
+    WHERE user_id = ${userId} AND consumable_id = ${consumableId}
+  `) as { quantity: number }[];
+  const quantity = ownedRows[0]?.quantity ?? 0;
+  if (quantity < 1) return { ok: false, error: 'Você não tem este item' };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const usedRows = (await sql`
+    SELECT uses_count FROM game_consumable_use
+    WHERE user_id = ${userId} AND consumable_id = ${consumableId} AND used_date = ${today}::date
+  `) as { uses_count: number }[];
+  const currentUses = usedRows[0]?.uses_count ?? 0;
+  if (currentUses >= 2) return { ok: false, error: 'Você já usou este item 2 vezes hoje (máx. 2 por dia)' };
+
+  const profile = await getOrCreateGameProfile(userId);
+  let newHealth = profile.health;
+  let newStress = profile.stress;
+  if (def.health_restore_percent) {
+    newHealth = Math.min(100, profile.health + Math.round(100 * def.health_restore_percent / 100));
+  }
+  if (def.stress_reduce_percent) {
+    newStress = Math.max(0, profile.stress - Math.round(profile.stress * def.stress_reduce_percent / 100));
+  }
+
+  await updateGameProfile(userId, { health: newHealth, stress: newStress });
+  const newQty = quantity - 1;
+  if (newQty === 0) {
+    await sql`DELETE FROM game_consumable_owned WHERE user_id = ${userId} AND consumable_id = ${consumableId}`;
+  } else {
+    await sql`
+      UPDATE game_consumable_owned SET quantity = ${newQty}, updated_at = NOW()
+      WHERE user_id = ${userId} AND consumable_id = ${consumableId}
+    `;
+  }
+  if (currentUses === 0) {
+    await sql`
+      INSERT INTO game_consumable_use (user_id, consumable_id, used_date, uses_count)
+      VALUES (${userId}, ${consumableId}, ${today}::date, 1)
+      ON CONFLICT (user_id, consumable_id, used_date) DO NOTHING
+    `;
+  } else {
+    await sql`
+      UPDATE game_consumable_use SET uses_count = 2
+      WHERE user_id = ${userId} AND consumable_id = ${consumableId} AND used_date = ${today}::date
+    `;
+  }
+  const updated = await getGameProfile(userId);
+  return { ok: true, profile: updated ?? undefined };
 }
