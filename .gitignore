@@ -40,6 +40,17 @@ yarn-error.log*
 .history/
 zipgame/
 
+# internal docs and implementation details (manter apenas localmente)
+IMPLEMENTACAO_COMPLETA.md
+IMPLEMENTACAO_SEM_SUPABASE.md
+PROJETO_ROADMAP.md
+README_SEM_SUPABASE.md
+README_SETUP.md
+STATUS_FASE4.md
+STATUS_PROJETO.md
+docs/
+neon/migrations/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

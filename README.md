@@ -72,6 +72,15 @@ Esses perfis são **apenas exemplos**: não revelam dados reais nem a lógica in
     - bot Telegram para criar eventos;
     - camada de gamificação integrada ao uso diário.
 
+```mermaid
+flowchart TD
+  A[Usuário registra evento<br/>ou tarefa] --> B[Organiza em pastas<br/>Trabalho / Estudos / Lazer / Pessoal]
+  B --> C[Timeline visual<br/>por mês]
+  C --> D[Perfil público<br/>/u/username]
+  C --> E[Meu Mundo<br/>avatar, capa, pet,<br/>moedas, missões]
+  A --> F[Bot do Telegram<br/>entrada rápida opcional]
+```
+
 ---
 
 ## Para devs – setup rápido
