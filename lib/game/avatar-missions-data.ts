@@ -65,7 +65,9 @@ export interface AvatarMissionRequirement {
     | 'level'
     | 'total_tasks_and_level'
     | 'distinct_days_and_level'
-    | 'total_and_distinct_folders';
+    | 'total_and_distinct_folders'
+    /** 10 tarefas + X pastas diferentes + pelo menos N eventos com link na timeline. */
+    | 'total_folders_tasks_and_links';
   totalTasks?: number;
   distinctDays?: number;
   level?: number;
@@ -117,7 +119,7 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(1, 3, 'Lenda Viva', '50 tarefas e nível 5.', 'Conclua 50 tarefas e atinja o nível 5.', 500, { kind: 'total_tasks_and_level', totalTasks: 50, level: 5 }, H));
   // 2 Lyra
   out.push(row(2, 1, 'Mente Brilhante', '5 eventos com links.', 'Crie 5 eventos na timeline com link.', 90, { kind: 'events_with_link', eventsWithLink: 5 }, E));
-  out.push(row(2, 2, 'Mestre dos Planos', '20 tarefas em pastas diferentes.', 'Conclua tarefas em pelo menos 5 pastas diferentes (20 tarefas no total).', 220, { kind: 'total_and_folders', totalTasks: 20, distinctFolders: 5 }, M));
+  out.push(row(2, 2, 'Mestre dos Planos', '20 tarefas em pastas diferentes.', 'Conclua tarefas em pelo menos 4 pastas diferentes (20 tarefas no total).', 220, { kind: 'total_and_folders', totalTasks: 20, distinctFolders: 4 }, M));
   out.push(row(2, 3, 'Grande General', 'Nível 6 e 100 tarefas.', 'Atinja o nível 6 e conclua 100 tarefas.', 600, { kind: 'total_tasks_and_level', totalTasks: 100, level: 6 }, H));
   // 3 Thorne
   out.push(row(3, 1, 'Ira Controlada', '5 tarefas de trabalho.', 'Conclua 5 tarefas em pasta de tipo Trabalho.', 100, { kind: 'tasks_by_folder_type', tasksByFolderType: 5, folderType: 'trabalho' }, E));
@@ -145,8 +147,19 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(8, 3, 'Mestre Assassino', 'Nível 7 e 100 tarefas.', 'Atinja o nível 7 e conclua 100 tarefas.', 750, { kind: 'total_tasks_and_level', totalTasks: 100, level: 7 }, H));
   // 9 Luna (Prelúdio — um pouco mais leve no fim)
   // Luna — A Guia (Prelúdio): Primeira Luz, Caminho Iluminado, Porta Aberta
-  out.push(row(9, 1, 'Primeira Luz', '10 tarefas em 3 pastas.', 'Acenda a chama: conclua 10 tarefas em pelo menos 3 pastas diferentes.', 100, { kind: 'total_and_folders', totalTasks: 10, distinctFolders: 3 }, E));
-  out.push(row(9, 2, 'Caminho Iluminado', '50 tarefas em 8 pastas.', 'Mantenha a tocha acesa: conclua 50 tarefas em 8 pastas diferentes.', 260, { kind: 'total_and_folders', totalTasks: 50, distinctFolders: 8 }, M));
+  out.push(
+    row(
+      9,
+      1,
+      'Primeira Luz',
+      '10 tarefas em 3 pastas + 1 link.',
+      'Acenda a chama: conclua 10 tarefas em pelo menos 3 pastas diferentes e crie pelo menos 1 evento na timeline com link.',
+      350,
+      { kind: 'total_folders_tasks_and_links', totalTasks: 10, distinctFolders: 3, eventsWithLink: 1 },
+      E,
+    )
+  );
+  out.push(row(9, 2, 'Caminho Iluminado', '50 tarefas em 4 pastas.', 'Mantenha a tocha acesa: conclua 50 tarefas em 4 pastas diferentes.', 260, { kind: 'total_and_folders', totalTasks: 50, distinctFolders: 4 }, M));
   out.push(row(9, 3, 'Porta Aberta', 'Nível 6 e 60 tarefas.', 'Prove que está pronto para a Ordem: nível 6 e 60 tarefas concluídas.', 650, { kind: 'total_tasks_and_level', totalTasks: 60, level: 6 }, M));
   // 10 Draven
   out.push(row(10, 1, 'Primeira Ressurreição', '5 tarefas em 3 dias.', 'Conclua 5 tarefas em dias diferentes (reativar o hábito).', 110, { kind: 'total_and_days', totalTasks: 5, distinctDays: 3 }, E));
@@ -154,8 +167,8 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(10, 3, 'Lich Supremo', 'Nível 8 e 200 tarefas.', 'Atinja o nível 8 e conclua 200 tarefas.', 700, { kind: 'total_tasks_and_level', totalTasks: 200, level: 8 }, H));
   // 11 Vex
   out.push(row(11, 1, 'Primeira Ilusão', '5 tarefas em 3 pastas.', 'Conclua 5 tarefas em 3 categorias (pastas) diferentes.', 95, { kind: 'distinct_folders', distinctFolders: 3 }, E));
-  out.push(row(11, 2, 'Mestre das Máscaras', '20 tarefas em 5 pastas.', 'Conclua 20 tarefas em 5 pastas diferentes.', 240, { kind: 'total_and_folders', totalTasks: 20, distinctFolders: 5 }, M));
-  out.push(row(11, 3, 'Arquiteta de Sonhos', 'Nível 7 e 50 tarefas em 5 pastas.', 'Nível 7 e 50 tarefas em 5 pastas diferentes.', 620, { kind: 'total_and_distinct_folders', totalTasks: 50, distinctFolders: 5, level: 7 }, H));
+  out.push(row(11, 2, 'Mestre das Máscaras', '20 tarefas em 4 pastas.', 'Conclua 20 tarefas em 4 pastas diferentes.', 240, { kind: 'total_and_folders', totalTasks: 20, distinctFolders: 4 }, M));
+  out.push(row(11, 3, 'Arquiteta de Sonhos', 'Nível 7 e 50 tarefas em 4 pastas.', 'Nível 7 e 50 tarefas em 4 pastas diferentes.', 620, { kind: 'total_and_distinct_folders', totalTasks: 50, distinctFolders: 4, level: 7 }, H));
   // 12 Raven
   out.push(row(12, 1, 'Primeira Recompensa', '5 tarefas de trabalho.', 'Conclua 5 tarefas em pasta Trabalho.', 105, { kind: 'tasks_by_folder_type', tasksByFolderType: 5, folderType: 'trabalho' }, E));
   out.push(row(12, 2, 'Caçadora Profissional', '25 tarefas em 5 dias.', 'Conclua 25 tarefas em 5 dias diferentes.', 270, { kind: 'total_and_days', totalTasks: 25, distinctDays: 5 }, M));
@@ -170,8 +183,8 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(14, 3, 'Deusa das Trevas', 'Nível 8 e 100 tarefas.', 'Atinja o nível 8 e conclua 100 tarefas.', 650, { kind: 'total_tasks_and_level', totalTasks: 100, level: 8 }, H));
   // 15 Sylas – 21 Gale
   out.push(row(15, 1, 'Primeira Transformação', 'Tarefas em 3 categorias.', 'Conclua tarefas em 3 pastas (tipos) diferentes.', 90, { kind: 'distinct_folders', distinctFolders: 3 }, E));
-  out.push(row(15, 2, 'Guardião da Floresta', '20 tarefas em 5 pastas.', 'Conclua 20 tarefas em 5 pastas diferentes.', 220, { kind: 'total_and_folders', totalTasks: 20, distinctFolders: 5 }, M));
-  out.push(row(15, 3, 'Arquidruida', 'Nível 7 e 100 tarefas em 5 pastas.', 'Nível 7 e 100 tarefas em 5 pastas diferentes.', 580, { kind: 'total_and_distinct_folders', totalTasks: 100, distinctFolders: 5, level: 7 }, H));
+  out.push(row(15, 2, 'Guardião da Floresta', '20 tarefas em 4 pastas.', 'Conclua 20 tarefas em 4 pastas diferentes.', 220, { kind: 'total_and_folders', totalTasks: 20, distinctFolders: 4 }, M));
+  out.push(row(15, 3, 'Arquidruida', 'Nível 7 e 100 tarefas em 4 pastas.', 'Nível 7 e 100 tarefas em 4 pastas diferentes.', 580, { kind: 'total_and_distinct_folders', totalTasks: 100, distinctFolders: 4, level: 7 }, H));
   out.push(row(16, 1, 'Primeira Caçada', '8 tarefas em um dia.', 'Conclua 8 tarefas em um único dia.', 110, { kind: 'max_tasks_one_day', maxTasksOneDay: 8 }, M));
   out.push(row(16, 2, 'Alfa da Alcateia', '20 tarefas e 4 dias seguidos.', 'Conclua 20 tarefas e mantenha 4 dias consecutivos.', 280, { kind: 'total_and_streak', totalTasks: 20, streakDays: 4 }, M));
   out.push(row(16, 3, 'Lobo Lendário', 'Nível 6 e 150 tarefas.', 'Atinja o nível 6 e conclua 150 tarefas.', 700, { kind: 'total_tasks_and_level', totalTasks: 150, level: 6 }, H));
@@ -185,7 +198,7 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(19, 2, 'Ave de Fogo', '20 tarefas em 5 dias.', 'Conclua 20 tarefas em 5 dias diferentes.', 260, { kind: 'total_and_days', totalTasks: 20, distinctDays: 5 }, M));
   out.push(row(19, 3, 'Fênix Imortal', 'Nível 7 e 100 tarefas.', 'Atinja o nível 7 e conclua 100 tarefas.', 680, { kind: 'total_tasks_and_level', totalTasks: 100, level: 7 }, H));
   out.push(row(20, 1, 'Primeira Onda', '5 tarefas em 3 pastas.', 'Conclua tarefas em 3 pastas diferentes.', 90, { kind: 'distinct_folders', distinctFolders: 3 }, E));
-  out.push(row(20, 2, 'Rei dos Mares', '30 tarefas em 5 pastas.', 'Conclua 30 tarefas em 5 pastas diferentes.', 230, { kind: 'total_and_folders', totalTasks: 30, distinctFolders: 5 }, M));
+  out.push(row(20, 2, 'Rei dos Mares', '30 tarefas em 4 pastas.', 'Conclua 30 tarefas em 4 pastas diferentes.', 230, { kind: 'total_and_folders', totalTasks: 30, distinctFolders: 4 }, M));
   out.push(row(20, 3, 'Deus Oceânico', 'Nível 6 e 100 tarefas.', 'Atinja o nível 6 e conclua 100 tarefas.', 600, { kind: 'total_tasks_and_level', totalTasks: 100, level: 6 }, H));
   out.push(row(21, 1, 'Primeira Brisa', '5 tarefas em um dia.', 'Conclua 5 tarefas em um único dia.', 95, { kind: 'max_tasks_one_day', maxTasksOneDay: 5 }, E));
   out.push(row(21, 2, 'Mestre dos Ventos', '40 tarefas em 7 dias.', 'Conclua 40 tarefas em 7 dias diferentes.', 250, { kind: 'total_and_days', totalTasks: 40, distinctDays: 7 }, M));
@@ -198,10 +211,10 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(23, 2, 'Rede Neural', '60 tarefas em 10 dias.', 'Conclua 60 tarefas em 10 dias diferentes.', 300, { kind: 'total_and_days', totalTasks: 60, distinctDays: 10 }, M));
   out.push(row(23, 3, 'Superinteligência', 'Nível 9 e 150 tarefas.', 'Atinja o nível 9 e conclua 150 tarefas.', 800, { kind: 'total_tasks_and_level', totalTasks: 150, level: 9 }, H));
   out.push(row(24, 1, 'Primeiro Hack', '5 tarefas em um dia.', 'Conclua 5 tarefas em um único dia.', 120, { kind: 'max_tasks_one_day', maxTasksOneDay: 5 }, M));
-  out.push(row(24, 2, 'Mestre do Código', '30 tarefas em 6 pastas.', 'Conclua 30 tarefas em 6 pastas diferentes.', 320, { kind: 'total_and_folders', totalTasks: 30, distinctFolders: 6 }, M));
+  out.push(row(24, 2, 'Mestre do Código', '30 tarefas em 4 pastas.', 'Conclua 30 tarefas em 4 pastas diferentes.', 320, { kind: 'total_and_folders', totalTasks: 30, distinctFolders: 4 }, M));
   out.push(row(24, 3, 'Deus da Matrix', 'Nível 8 e 120 tarefas.', 'Atinja o nível 8 e conclua 120 tarefas.', 850, { kind: 'total_tasks_and_level', totalTasks: 120, level: 8 }, H));
   out.push(row(25, 1, 'Primeira Invenção', '10 tarefas em 3 pastas.', 'Conclua 10 tarefas em 3 pastas diferentes.', 95, { kind: 'total_and_folders', totalTasks: 10, distinctFolders: 3 }, E));
-  out.push(row(25, 2, 'Mestre da Construção', '40 tarefas em 6 pastas.', 'Conclua 40 tarefas em 6 pastas diferentes.', 250, { kind: 'total_and_folders', totalTasks: 40, distinctFolders: 6 }, M));
+  out.push(row(25, 2, 'Mestre da Construção', '40 tarefas em 4 pastas.', 'Conclua 40 tarefas em 4 pastas diferentes.', 250, { kind: 'total_and_folders', totalTasks: 40, distinctFolders: 4 }, M));
   out.push(row(25, 3, 'Arquiteta do Futuro', 'Nível 7 e 100 tarefas.', 'Atinja o nível 7 e conclua 100 tarefas.', 680, { kind: 'total_tasks_and_level', totalTasks: 100, level: 7 }, H));
   out.push(row(26, 1, 'Primeiro Programa', '5 tarefas em 3 dias.', 'Conclua 5 tarefas em 3 dias diferentes.', 90, { kind: 'total_and_days', totalTasks: 5, distinctDays: 3 }, E));
   out.push(row(26, 2, 'Automação Total', '35 tarefas em 7 dias.', 'Conclua 35 tarefas em 7 dias diferentes.', 240, { kind: 'total_and_days', totalTasks: 35, distinctDays: 7 }, M));
@@ -210,7 +223,7 @@ export function getAvatarMissionsData(): AvatarMissionRow[] {
   out.push(row(27, 2, 'Mestre dos Dados', '50 tarefas em 10 dias.', 'Conclua 50 tarefas em 10 dias diferentes.', 220, { kind: 'total_and_days', totalTasks: 50, distinctDays: 10 }, M));
   out.push(row(27, 3, 'Grande Teórico', 'Nível 8 e 100 tarefas.', 'Atinja o nível 8 e conclua 100 tarefas.', 600, { kind: 'total_tasks_and_level', totalTasks: 100, level: 8 }, H));
   out.push(row(28, 1, 'Primeiro Lançamento', '5 tarefas em 3 pastas.', 'Conclua tarefas em 3 pastas diferentes.', 100, { kind: 'distinct_folders', distinctFolders: 3 }, E));
-  out.push(row(28, 2, 'Exploradora Espacial', '30 tarefas em 6 pastas.', 'Conclua 30 tarefas em 6 pastas diferentes.', 270, { kind: 'total_and_folders', totalTasks: 30, distinctFolders: 6 }, M));
+  out.push(row(28, 2, 'Exploradora Espacial', '30 tarefas em 4 pastas.', 'Conclua 30 tarefas em 4 pastas diferentes.', 270, { kind: 'total_and_folders', totalTasks: 30, distinctFolders: 4 }, M));
   out.push(row(28, 3, 'Comandante da Estação', 'Nível 9 e 120 tarefas.', 'Atinja o nível 9 e conclua 120 tarefas.', 720, { kind: 'total_tasks_and_level', totalTasks: 120, level: 9 }, H));
   // 29 Zen – 34 Eternal (Zen fase 2 e 3 calibrados)
   out.push(row(29, 1, 'Primeira Meditação', '5 tarefas em 3 dias.', 'Conclua 5 tarefas em 3 dias diferentes.', 80, { kind: 'total_and_days', totalTasks: 5, distinctDays: 3 }, E));

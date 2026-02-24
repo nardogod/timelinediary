@@ -52,6 +52,16 @@ async function checkAvatarRequirement(
       const withLink = events.filter((e) => e.link != null && String(e.link).trim() !== '').length;
       return withLink >= (r.eventsWithLink ?? 0);
     }
+    case 'total_folders_tasks_and_links': {
+      const folders = await getDistinctFoldersWithCompletedTasksCount(userId);
+      const events = await getEventsByUserId(userId);
+      const withLink = events.filter((e) => e.link != null && String(e.link).trim() !== '').length;
+      return (
+        totalTasks >= (r.totalTasks ?? 0) &&
+        folders >= (r.distinctFolders ?? 0) &&
+        withLink >= (r.eventsWithLink ?? 0)
+      );
+    }
     case 'distinct_folders': {
       const folders = await getDistinctFoldersWithCompletedTasksCount(userId);
       return folders >= (r.distinctFolders ?? 0);

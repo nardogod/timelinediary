@@ -61,9 +61,8 @@ export async function getFeaturedUsers(): Promise<Pick<User, 'id' | 'username' |
   const sql = getNeon();
   const rows = await sql`
     SELECT id, username, name, avatar FROM users
-    WHERE LOWER(TRIM(username)) = ${'leo1'}
-       OR LOWER(TRIM(username)) = ${'teste@teste'}
-       OR LOWER(TRIM(username)) = ${'loid'}
+    WHERE LOWER(TRIM(username)) = ${'demo_lucas'}
+       OR LOWER(TRIM(username)) = ${'demo_clara'}
     ORDER BY username
   `;
   return (rows as Record<string, unknown>[]).map((row) => ({
