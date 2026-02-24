@@ -475,17 +475,23 @@ function GamePageContent() {
             </button>
             {!storyMinimized && (
               <div className="px-4 pb-4 pt-0 space-y-4 text-sm text-slate-300 border-t border-slate-700">
-                <p className="italic text-slate-400">Prelúdio — Luna, a Última Iniciada, te guia nos primeiros passos. Complete Primeira Luz, Caminho Iluminado e Porta Aberta para provar que está pronto e desbloquear a Trilha do Guerreiro.</p>
                 {profile?.avatar_image_url && (() => {
                   const avatar = getAvatarByPath(profile.avatar_image_url);
                   const idx = parseInt(avatar?.id?.replace('personagem', '') ?? '9', 10);
                   const arc = getArcByAvatarIndex(idx);
                   const story = getArcStory(idx);
-                  if (!arc || !story) return null;
+                  if (!arc || !story) {
+                    return (
+                      <p className="italic text-slate-400">
+                        Prelúdio — Luna, a Última Iniciada, te guia nos primeiros passos. Complete Primeira Luz, Caminho Iluminado e Porta Aberta para provar que está pronto e desbloquear a Trilha do Guerreiro.
+                      </p>
+                    );
+                  }
                   return (
                     <div>
-                      <p className="font-medium text-slate-200">Sua trilha atual ({arc.name})</p>
-                      <p className="text-slate-400">{story}</p>
+                      <p className="italic text-slate-400">
+                        {arc.name} — {story}
+                      </p>
                     </div>
                   );
                 })()}

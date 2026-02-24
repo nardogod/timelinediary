@@ -28,6 +28,7 @@ export default function EventForm({ userId, initialEvent, onSave, onCancel }: Ev
   const [folder, setFolder] = useState(initialEvent?.folder || '');
   const [hasEndDate, setHasEndDate] = useState(!!initialEvent?.endDate);
   const [folders, setFolders] = useState<MockFolder[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Estados para eventos recorrentes
   const [isRecurring, setIsRecurring] = useState(false);
@@ -52,7 +53,9 @@ export default function EventForm({ userId, initialEvent, onSave, onCancel }: Ev
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (isSubmitting) return;
+
     if (!title.trim()) {
       alert('Por favor, preencha o título do evento');
       return;
@@ -64,14 +67,15 @@ export default function EventForm({ userId, initialEvent, onSave, onCancel }: Ev
       finalLink = `https://${finalLink}`;
     }
 
-    // Se é evento recorrente
-    if (isRecurring) {
-      if (selectedDaysOfWeek.length === 0) {
-        alert('Por favor, selecione pelo menos um dia da semana');
-        return;
-      }
+    setIsSubmitting(true);
+    try {
+      // Se é evento recorrente
+      if (isRecurring) {
+        if (selectedDaysOfWeek.length === 0) {
+          alert('Por favor, selecione pelo menos um dia da semana');
+          return;
+        }
 
-      try {
         const response = await fetch('/api/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -79,7 +83,7 @@ export default function EventForm({ userId, initialEvent, onSave, onCancel }: Ev
             title: title.trim(),
             type,
             link: finalLink || null,
-            folder_id: folder ? folders.find(f => f.name === folder)?.id : null,
+            folder_id: folder ? folders.find((f) => f.name === folder)?.id : null,
             is_recurring: true,
             recurring_year: recurringYear,
             recurring_month: recurringMonth,
@@ -97,34 +101,32 @@ export default function EventForm({ userId, initialEvent, onSave, onCancel }: Ev
         alert(`${result.count} eventos criados com sucesso!`);
         onCancel(); // Fecha o formulário após criar
         return;
-      } catch (error) {
-        console.error('Error creating recurring events:', error);
-        alert('Erro ao criar eventos recorrentes');
+      }
+
+      // Evento único (lógica existente)
+      if (!date) {
+        alert('Por favor, selecione uma data');
         return;
       }
-    }
 
-    // Evento único (lógica existente)
-    if (!date) {
-      alert('Por favor, selecione uma data');
-      return;
-    }
+      if (hasEndDate && endDate && new Date(endDate) < new Date(date)) {
+        alert('A data de término deve ser posterior à data de início');
+        return;
+      }
 
-    if (hasEndDate && endDate && new Date(endDate) < new Date(date)) {
-      alert('A data de término deve ser posterior à data de início');
-      return;
+      onSave({
+        userId,
+        title: title.trim(),
+        date,
+        type,
+        link: finalLink || undefined,
+        endDate: hasEndDate && endDate ? endDate : undefined,
+        folder: folder || undefined,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onSave({
-      userId,
-      title: title.trim(),
-      date,
-      type,
-      link: finalLink || undefined,
-      endDate: hasEndDate && endDate ? endDate : undefined,
-      folder: folder || undefined
-    });
-  }, [title, date, endDate, type, link, folder, hasEndDate, userId, onSave, isRecurring, selectedDaysOfWeek, recurringYear, recurringMonth, folders]);
+  }, [title, date, endDate, type, link, folder, hasEndDate, userId, onSave, isRecurring, selectedDaysOfWeek, recurringYear, recurringMonth, folders, isSubmitting]);
 
   const typeColors = {
     simple: '#10b981',
@@ -384,10 +386,21 @@ export default function EventForm({ userId, initialEvent, onSave, onCancel }: Ev
       <div className="flex gap-2 pt-2">
         <button
           type="submit"
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-sm"
+          disabled={isSubmitting}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-sm ${
+            isSubmitting
+              ? 'bg-blue-500 text-white opacity-60 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
         >
           <Save className="w-4 h-4" />
-          {initialEvent ? 'Salvar Alterações' : isRecurring ? 'Criar Eventos Recorrentes' : 'Criar Evento'}
+          {isSubmitting
+            ? 'Salvando...'
+            : initialEvent
+            ? 'Salvar Alterações'
+            : isRecurring
+            ? 'Criar Eventos Recorrentes'
+            : 'Criar Evento'}
         </button>
         <button
           type="button"
